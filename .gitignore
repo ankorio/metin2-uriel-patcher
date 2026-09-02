@@ -12,3 +12,6 @@ stub/*.exp
 stub/*.lib
 # anything the patcher leaves in a game folder
 _patcher/
+# editor/agent scratch, never part of the release
+.claude/
+.pytest_cache/
