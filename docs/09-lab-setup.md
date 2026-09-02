@@ -35,8 +35,8 @@ Any hypervisor works (VirtualBox, VMware, Hyper-V, QEMU/KVM). What matters:
 - **A separate game account** created for the lab. Your real credentials
   never enter the VM.
 - **Shared folder or SSH** to move files in and out. The patcher writes its
-  log to `_patcher\patcher_run.log`, the stub to `uriel_stub.log`, the mod
-  host to `mods\mods.log`; you will be reading those from outside.
+  log to `_patcher\patcher_run.log`, the stub to `_patcher\uriel_stub.log`, the mod
+  host to `_patcher\mods.log`; you will be reading those from outside.
 
 ## Tools
 
@@ -66,6 +66,65 @@ game in the guest:
   scheduled task created with `/it`, not a plain SSH command.
 - Several clients can run at once; resolve which PID is which *before*
   attaching to anything.
+
+That is the whole pattern; here it is as commands, for a Windows 10/11 guest
+with the OpenSSH server installed and a game folder at `C:\Games\Triarch`.
+
+1. **Wrap the launch in a `.bat`** so the working directory is the game
+   folder — the client finds `mods\` and `_patcher\` relative to it:
+
+   ```bat
+   @echo off
+   cd /d C:\Games\Triarch
+   start "" triarch_clean.exe --game
+   ```
+
+2. **Run it in the interactive session** through a scheduled task. A command
+   run over SSH lands in a session with no desktop, and the client needs one;
+   `/it` puts the task into the logged-on user's session. Register once, run
+   as often as you like, delete when done:
+
+   ```
+   schtasks /create /tn triarch-launch /tr "C:\lab\launch.bat" /sc once /st 23:59 /it /f
+   schtasks /run /tn triarch-launch
+   schtasks /delete /tn triarch-launch /f
+   ```
+
+   `/st 23:59` is a placeholder start time; `/run` fires the task immediately.
+
+3. **Read a log the client holds open.** The client keeps its logs open for
+   appending. A reader that opens the file for shared access reads it fine; a
+   viewer that asks for exclusive access reports the file as in use. From
+   Python, one line:
+
+   ```
+   python -c "print(open(r'C:\Games\Triarch\_patcher\mods.log','rb').read().decode('utf-8','replace')[-4000:])"
+   ```
+
+   or from PowerShell, with a `FileStream` that allows the writer to keep
+   writing:
+
+   ```powershell
+   $s = [IO.File]::Open('C:\Games\Triarch\_patcher\mods.log', 'Open', 'Read', 'ReadWrite')
+   $r = New-Object IO.StreamReader($s); $r.ReadToEnd(); $r.Close()
+   ```
+
+4. **Mind the shell in between.** A command sent over SSH is run by `cmd.exe`
+   in the guest, so a `|` or `&` inside it is cmd's pipe or command separator,
+   not a character in your argument: `findstr "NATIVE|MODS" uriel_stub.log`
+   becomes two commands. Escape with `^` (`^|`), put the command in a `.bat`,
+   or run it under `powershell -Command "..."`.
+
+5. **Identify before you kill.** Every client is named `triarch_clean.exe`, so
+   list them with their paths and pick by folder, never by name alone:
+
+   ```powershell
+   Get-CimInstance Win32_Process -Filter "Name='triarch_clean.exe'" | Select-Object ProcessId, ExecutablePath
+   ```
+
+   then `taskkill /pid <pid> /f` for the one whose `ExecutablePath` is the
+   folder you meant. (`wmic process where "name='triarch_clean.exe'" get
+   ProcessId,ExecutablePath` does the same on older builds of Windows.)
 
 ## The measure-don't-infer loop
 

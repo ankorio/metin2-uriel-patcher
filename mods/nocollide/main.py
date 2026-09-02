@@ -119,7 +119,7 @@ VERBOSE = True
 #   active=1 enabled=0 -> CANCELLED (moved by hand, attacked, cast). ACTIVE is
 #                         stale and stays set forever; only ENABLED tells you.
 #   active=0           -> ARRIVED. The updater cleared it.
-DEBUG = True
+DEBUG = False       # off by default: a mod without a config section must not start chatty
 DEBUG_S = 3.0
 
 # There are deliberately NO timeout, arrival-radius or "has it moved lately"

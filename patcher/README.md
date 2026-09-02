@@ -8,7 +8,8 @@ specification of each step, the output files and the failure modes is in
 
 ```
 python sync.py                                  # stage tools/, mods/, the stub DLL into the package
-python -m triarch_patcher <game folder> --console   # run from source (from src/)
+set PYTHONPATH=src                              # or: export PYTHONPATH=src
+python -m triarch_patcher <game folder> --console   # run from source
 build.bat stub                                  # build the DLL with MSVC, then freeze the exe
 build.bat                                       # freeze only
 ```

@@ -9,7 +9,6 @@ continuously and only speaks when the answer *changes* - a wall of "0 ground
 item(s)" proves nothing and drowns the one line that matters.
 """
 CAPABILITIES = ["read"]
-ENABLED = True
 
 EVERY = 1.0             # ground items despawn; sample faster than that
 QUIET_REPEAT = 30.0     # re-state an unchanged answer this often, at most

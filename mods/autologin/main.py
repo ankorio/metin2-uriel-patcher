@@ -23,7 +23,6 @@ ignores them (clicking a different character slot changed nothing).
 
 CAPABILITIES = ["read", "ui"]
 
-ENABLED = True
 TAP_AFTER = 5.0         # let the login window finish building
 SETTLE = 3.0            # between steps; the client animates and talks to the server
 MAX_STEPS = 40

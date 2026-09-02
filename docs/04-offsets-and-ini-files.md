@@ -27,7 +27,10 @@ when a class gains a member every field after it shifts. The resolver's own
 baseline table records the "use skills" byte at `0x501D2` on one build and
 `0x501E2` on another; the skill vector at `0x50164` versus `0x50174`.
 
-So the project has one hard invariant: **no address is ever typed in**. Every
+So the project has one hard invariant: **no address is ever typed in**. (The
+one table of literal addresses in `tools/mkoffsets.py`, `BASELINE` near the
+top of the file, is a regression fixture: `--check` compares fresh resolutions
+against it, and it is never used to produce output - section 9.) Every
 value is re-derived, per build, from an *anchor* - something a recompilation
 cannot move:
 
@@ -97,9 +100,28 @@ At runtime the stub's `Abs(va)` computes `GetModuleHandle(NULL) + (va -
 kImageBase)`, so the ini stays in VA form and remains right even if the image
 were relocated.
 
+**One worked conversion.** Take `kTraceSink` from a `uriel_offsets.ini`
+written for the 2026-08-30 build: `0058EE90`. On every build examined `.text`
+has `VirtualAddress = 0x10000` and `PointerToRawData = 0x400`, so:
+
+```
+VA          0x0058EE90
+- ImageBase 0x00400000   -> RVA         0x0018EE90
+- VirtualAddress 0x10000 -> offset into .text 0x17EE90
++ PointerToRawData 0x400 -> file offset 0x0017F290
+```
+
+Open `triarch_clean.exe` in a hex editor at `0x17F290` and you find `C2 00 00`
+- `ret 0`, the dead diagnostic sink that `trace_sink()` insisted on. Do the
+same at `0x18E290`, the answer you get if you assume `.text` starts at RVA
+`0x1000` as it does in most executables, and you land on `01 50 E8`: nothing.
+That is the whole reason conversions go through the section table.
+
 ## 3. Anchor techniques, with the code that uses them
 
 Every technique below is quoted from a real resolver in `tools/mkoffsets.py`.
+The opcode bytes it quotes (`68 imm32`, `FF 15 imm32`, `8B 81 disp32`, ...)
+are collected in one table at the end of the [glossary](08-glossary.md#x86-byte-patterns-used-in-this-repo).
 
 ### 3.1 String cross-reference
 
@@ -365,8 +387,9 @@ The stub reads the file in `LoadOffsets()`, called from `DllMain` on
 `DLL_PROCESS_ATTACH`, via `GetPrivateProfileStringA("offsets", key, ...)`. A
 zero in the required list is `FATAL: offset '...' missing/zero` and the stub
 runs "inert (no hooks)"; a zero in the optional list only logs a note. It then
-exports `TRIARCH_ATTACK_OK`, `TRIARCH_HUNT_OK` and `TRIARCH_SKILL_OK` so mods
-can degrade gracefully, and calls `LoadNatives()`.
+sets the environment variables `TRIARCH_ATTACK_OK`, `TRIARCH_HUNT_OK` and
+`TRIARCH_SKILL_OK` (`SetEnvironmentVariableA`; the DLL's only *export* is
+`FireInTheHole`) so mods can degrade gracefully, and calls `LoadNatives()`.
 
 **The file is read once, at DLL load.** Nothing re-reads it. Regenerating
 `uriel_offsets.ini` (or `uriel_natives.ini`) under a running client changes

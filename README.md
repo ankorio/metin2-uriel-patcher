@@ -39,8 +39,10 @@ seven steps in order and writes a log you can read.
 
 ## Quick start (users)
 
-1. Build `patcher/dist/TriarchPatcher.exe` (see *Building*) or download a
-   release build.
+1. Build `patcher/dist/TriarchPatcher.exe` (see *Building*). There is no
+   prebuilt binary and no release download: the repository ships source only.
+   It does not ship the game client either — you need your own installation
+   with `triarch.exe` and `client_x86.dll` in it.
 2. Copy it into the game folder, next to `triarch.exe`.
 3. Run it. A log window shows the seven steps; the run takes a few minutes,
    most of it spent resolving offsets in a 68 MB code section.
@@ -68,6 +70,7 @@ Keep these in the game folder:
 tools/      mkoffsets.py   structural offset resolver -> the two .ini files
             unuriel.py     the unpacker: derive (offline), rebuild, harvest (live fallback)
             ksattack.py    the keystream attack as a stand-alone experiment
+            attack_figures.py  draws the five figures in docs/02 from a protected exe
             imports_db.json  import name -> DLL table used by derive
             namemods.py    helpers for the embedded-Python method tables
 stub/       uriel_stub.cpp / .def / build_stub.bat   the replacement DLL (MSVC)
@@ -86,6 +89,7 @@ is exactly the silent-wrong-address bug this project exists to avoid.
 | # | document | what you learn |
 |---|---|---|
 | 00 | [start here](docs/00-start-here.md) | reading order, prerequisites, how to set up a safe lab |
+| 00b | [how a Metin2 client works](docs/00b-how-a-metin2-client-works.md) | the engine, the embedded Python, the binding tables, the frame loop, entities, the protocol: the picture every later document assumes |
 | 01 | [how Uriel protects the client](docs/01-how-uriel-protects-the-client.md) | the four transformations, and how each was discovered |
 | 02 | [unpacking offline](docs/02-unpacking-offline.md) | the many-time-pad keystream attack, decoding the import table, finding the entry point, rebuilding the PE |
 | 03 | [the patcher pipeline](docs/03-patcher-pipeline.md) | the seven steps as a specification, failure modes, building the exe |
@@ -95,6 +99,15 @@ is exactly the silent-wrong-address bug this project exists to avoid.
 | 07 | [mods catalogue](docs/07-mods-catalogue.md) | every shipped mod: purpose, config keys, what it teaches |
 | 08 | [glossary](docs/08-glossary.md) | the vocabulary, briefly |
 | 09 | [lab setup](docs/09-lab-setup.md) | tools, VM hygiene, the measure-don't-infer workflow |
+
+## Requirements
+
+Python 3.11+ and `capstone` (`pip install capstone`) for `tools/mkoffsets.py`
+and for running the patcher from source; `tools/unuriel.py` and
+`tools/ksattack.py` need nothing beyond the standard library. `numpy` and
+`matplotlib` for `tools/attack_figures.py` only. PyInstaller and the Visual
+Studio 2017 Build Tools (x86 toolchain) for building the DLL and freezing the
+exe. `pytest` for `tests/`.
 
 ## Building
 
@@ -111,8 +124,9 @@ build.bat             # freeze only (the DLL must already exist)
 current `tools/`, `mods/` and the DLL you just built, plus the DLL's sha256 so
 the patcher can prove it deployed the right bytes.
 
-To run the patcher from source instead: `cd patcher && python sync.py &&
-python -m triarch_patcher <game folder> --console` (add `--live` for the
+To run the patcher from source instead: `cd patcher`, `python sync.py`,
+`set PYTHONPATH=src` (`export PYTHONPATH=src` on a Unix shell), then
+`python -m triarch_patcher <game folder> --console` (add `--live` for the
 original launch-and-harvest method, see docs/03).
 
 ## Verification status
@@ -124,8 +138,10 @@ keystreams). Each derived a keystream with zero weak offsets, decoded the same
 resolver. For the two builds where a clean exe from the live method existed,
 the offline rebuild was byte-identical in `.text`, entry point and every data
 section. A client patched by the frozen exe built from this tree booted with the
-stub attached, 8 natives armed and the mods loaded, and reached the login
-screen; the logs are quoted in docs/03.
+stub attached, the eight gateway natives declared in `mods/natives.json`
+armed (the 22 stub functions on `triarch_native` are a separate count — see
+docs/05), and the mods loaded, and reached the login screen; the logs are
+quoted in docs/03.
 
 ## Rules this project keeps
 
@@ -135,10 +151,13 @@ screen; the logs are quoted in docs/03.
   times a second; walking through walls is visible server-side. Actor
   pass-through (walking through mobs) is client-only and is what `nocollide`
   does.
-- **No credentials in the tree.** `mods/config.json` ships with autologin off
-  and an empty user.
+- **No credentials in the tree.** `mods/config.json` ships with `autologin`
+  disabled (`{"enabled": false}`), and the mod stores no credentials.
 - **Nothing hardcoded.** If a number is an address, it is derived, or it is a
-  bug.
+  bug. The one table of literal addresses, `BASELINE` in
+  `tools/mkoffsets.py`, is a self-test fixture: known-good values from one
+  build that `--check` compares fresh resolutions against. It is never used to
+  produce output.
 
 ## License
 

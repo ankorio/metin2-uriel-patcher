@@ -65,10 +65,10 @@ client.
 | `routes` | travel scripting | no | yes (fields) | yes |
 | `shoppos` | data export | no (inert until `URL` set) | yes (`offline_shops`, `http_post`) | no |
 | `unstick` | movement | no | no | yes |
-| `apidiag` | diagnostic | **no section → loads by default** | no | no |
-| `nativeprobe` | diagnostic | **no section → loads by default** | yes | no |
-| `probe_ui` | diagnostic | **no section → loads by default** | no | no |
-| `uispy` | diagnostic | **no section → loads by default** | no | no |
+| `apidiag` | diagnostic | no (ships an explicit `"enabled": false` section) | no | no |
+| `nativeprobe` | diagnostic | no (ships an explicit `"enabled": false` section) | yes | no |
+| `probe_ui` | diagnostic | no (ships an explicit `"enabled": false` section) | no | no |
+| `uispy` | diagnostic | no (ships an explicit `"enabled": false` section) | no | no |
 
 ## A note on default enablement
 
@@ -223,7 +223,8 @@ loot. Three modes:
 `TRIGGER_ON_KILL`, `IDLE_INTERVAL`, `SET_CLIENT_FLAG`, `VERBOSE`, Revert.
 
 **Profile notes.** `WANTED` differs per character in practice (the example
-config shows `["Espada", 27610]`). Name matching is localised; prefer vnums.
+config shows `["Espada", 27610]`; the reference client is Spanish-localised, so
+names in configs are Spanish strings). Name matching is localised; prefer vnums.
 
 **Limitations.** Needs api v13 for pickup, v15 for `WANTED` (falls back to
 blind pickup with a log line). The kill trigger and fetching need the native
@@ -746,8 +747,13 @@ Then it does nothing.
 
 **Config keys.** None effective (`ENABLED = True` is vestigial).
 
-**Marked as:** example / probe. **No section in `mods/config.json`**, so it
-loads by default; harmless.
+**Marked as:** example / probe. Ships with an explicit `"enabled": false`
+section in `mods/config.json`; enable it in a profile when you want the
+report. Harmless. A `sys.modules['triarch_native'] = None` line within the
+first second after boot is the registration race, not a broken gateway: the
+mod host's first tick runs some 70–80 ms before the stub registers the module
+(document 05, section 1.6). The probe waits for the module, or a couple of
+seconds, before reporting, so a `None` that stands is real.
 
 **What it teaches.** Twenty lines that answer "is the gateway up?" before you
 debug anything else.
@@ -770,10 +776,14 @@ including a real pointer. Runs once; waits for the game phase.
 **Config keys.** `RUN_CALL = True`, `RUN_ACQUIRE = True`. `ENABLED = True` is
 vestigial.
 
-**Marked as:** probe. **No section in `mods/config.json`**, so it loads by
-default — and stage 4 has a real combat effect (it may acquire a target and
-walk to it). Set `RUN_ACQUIRE: false` or disable it before running on a
-character you care about.
+**Marked as:** probe. Ships with an explicit `"enabled": false` section in
+`mods/config.json` — and stage 4 has a real combat effect (it may acquire a
+target and walk to it). Enable it only in the profile of a character you do
+not care about, or set `RUN_ACQUIRE: false` first. A `FAIL - 'triarch_native'
+is not importable` within the first second after boot is the registration race
+described under `apidiag`, not a missing `uriel_natives.ini`; the probe waits
+for the module (or a couple of seconds) before judging, so a `FAIL` that
+persists is real — then check `uriel_stub.log` for the `NATIVE:` lines.
 
 **What it teaches.** How to test an unsafe layer in order of blast radius.
 
@@ -792,8 +802,8 @@ each is patchable with a `setattr`/`delattr` round-trip on a dummy attribute
 
 **Config keys.** `DELAY_S = 3.0`, `DUMMY`, `CHUNK = 5`.
 
-**Marked as:** probe. **No section in `mods/config.json`**, so it loads by
-default; harmless.
+**Marked as:** probe. Ships with an explicit `"enabled": false` section in
+`mods/config.json`; harmless when enabled.
 
 **What it teaches.** Compiled UI classes may refuse attribute assignment;
 test before designing around a patch.
@@ -814,8 +824,8 @@ phase window that turned out to be an int).
 
 **Config keys.** None effective (`ENABLED = True` is vestigial).
 
-**Marked as:** probe. **No section in `mods/config.json`**, so it loads by
-default; read-only in effect but chatty.
+**Marked as:** probe. Ships with an explicit `"enabled": false` section in
+`mods/config.json`; read-only in effect but chatty when enabled.
 
 **What it teaches.** Observe, then call: the technique that produced
 `autologin` and `chanswap`.

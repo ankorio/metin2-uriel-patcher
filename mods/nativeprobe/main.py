@@ -18,15 +18,18 @@ Everything is logged and nothing is retried: a fault disarms the name inside
 the stub, and hammering it would only produce a second identical fault.
 """
 
+import time
+
 CAPABILITIES = ["read"]
 
-ENABLED = True
+WAIT_S = 2.0            # the stub registers triarch_native ~70 ms after the first tick
 RUN_CALL = True         # False = registration + error paths only, no native call
 RUN_ACQUIRE = True      # stage 4: FindAndSetNewTarget. Real combat effect -
                         # it may acquire a target and walk to it, exactly as
                         # autohunt2 does. Set False to stop after stage 3.
 
 _done = False
+_t0 = 0.0
 
 
 def _native():
@@ -46,9 +49,12 @@ def _probe(api):
 
     m = _native()
     if m is None:
-        api.log("nativeprobe: FAIL - 'triarch_native' is not importable. The stub "
-                "either did not load uriel_natives.ini or registration failed; "
-                "check uriel_stub.log for the NATIVE: lines.")
+        api.log("nativeprobe: FAIL - 'triarch_native' is not importable %.1fs "
+                "after load. In the first second after boot this is the "
+                "registration race (the stub registers the module just after the "
+                "host's first tick), not a broken gateway; any later, check "
+                "uriel_stub.log for the NATIVE: lines."
+                % (time.time() - _t0))
         return
     api.log("nativeprobe: module imported, call=%r" % getattr(m, "call", None))
 
@@ -121,14 +127,19 @@ def _probe(api):
 
 
 def on_load(api):
-    global _done
+    global _done, _t0
     _done = False
+    _t0 = time.time()
     api.log("nativeprobe: loaded, waiting for the game phase")
 
 
 def on_update(api, dt):
     global _done
     if _done:
+        return
+    # The first ticks run before the stub has registered triarch_native, so
+    # probing there was a false FAIL every boot. Wait for it, up to WAIT_S.
+    if _native() is None and time.time() - _t0 < WAIT_S:
         return
     if _probe(api) is False:
         return              # not in game yet, try again next tick

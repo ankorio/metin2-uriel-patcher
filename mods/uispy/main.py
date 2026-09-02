@@ -13,7 +13,6 @@ normally while being observed.
 """
 
 CAPABILITIES = ["read", "ui"]
-ENABLED = True
 
 _patched = []
 _dumped = False

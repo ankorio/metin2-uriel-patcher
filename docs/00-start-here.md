@@ -13,17 +13,41 @@ new concept the first time it appears.
 - **What a function call is at the machine level.** Arguments go somewhere
   (the stack, on 32-bit x86), a `call` instruction jumps, a `ret` comes back.
   You do not need to be able to write assembly; you need to be able to read
-  a dozen instructions with a reference open.
+  a dozen instructions with a reference open. The byte patterns the documents
+  quote (`E8 rel32`, `FF 15 imm32`, `8B 81 disp32`, ...) are collected in one
+  table at the end of the [glossary](08-glossary.md#x86-byte-patterns-used-in-this-repo).
 - **Hexadecimal.** Addresses and offsets are written in hex throughout.
 
 You do **not** need prior experience with PE files, debuggers, disassemblers,
 or anti-cheat systems. That is what the case study teaches.
 
+## What you need, and what runs where
+
+You need your own copy of the protected client — `triarch.exe` and the
+`client_x86.dll` beside it, from a game installation. The repository does not
+ship them. It ships no prebuilt binary of anything else either: there is no
+release download, and `stub/uriel_stub.dll` and
+`patcher/dist/TriarchPatcher.exe` are built from source on Windows as the
+README's *Building* section describes. With a client and no Windows machine
+you can still run the first half of the chain:
+
+| Runs on any OS (pure Python) | Windows only |
+|---|---|
+| `tools/ksattack.py` — the keystream attack | `stub/build_stub.bat` and `patcher/build.bat` — MSVC and PyInstaller |
+| `tools/unuriel.py derive` and `rebuild` — the whole unpacker | `uriel_stub.dll` — it is loaded by the game |
+| `tools/attack_figures.py` — the figures in document 02 | `TriarchPatcher.exe`, and `tools/unuriel.py harvest` (the live fallback) |
+| `tools/mkoffsets.py` on a rebuilt `triarch_clean.exe` — every offset | the game itself, and everything in documents 05–07 that watches it run |
+| `patcher/sync.py --check` — the staging self-test | |
+
+Document 09 describes the disposable Windows VM the right-hand column
+assumes; read it before the first launch of anything.
+
 ## Reading order
 
 | document | read it when | time |
 |---|---|---|
-| [01 how Uriel protects the client](01-how-uriel-protects-the-client.md) | first — it sets up the problem | 30 min |
+| [00b how a Metin2 client works](00b-how-a-metin2-client-works.md) | first — what is inside the process the protector wraps | 20 min |
+| [01 how Uriel protects the client](01-how-uriel-protects-the-client.md) | next — it sets up the problem | 30 min |
 | [02 unpacking offline](02-unpacking-offline.md) | you want to see a protector defeated with a histogram | 45 min |
 | [03 the patcher pipeline](03-patcher-pipeline.md) | you want to run or modify the tool | 20 min |
 | [04 offsets and ini files](04-offsets-and-ini-files.md) | you need an address in the binary and refuse to hardcode it | 60 min |
@@ -33,9 +57,9 @@ or anti-cheat systems. That is what the case study teaches.
 | [08 glossary](08-glossary.md) | whenever a word is unfamiliar | reference |
 | [09 lab setup](09-lab-setup.md) | before you run anything on a machine you care about | 20 min |
 
-If you only have an hour: read 01 and 02. They contain the whole idea.
+If you only have an hour: read 00b, 01 and 02. They contain the whole idea.
 
-Each tutorial page has **See it yourself** boxes: a free tool, the exact clicks, and a screenshot of what you should be looking at. Document 01 opens with the list of tools to install (PE-bear, Detect It Easy, a hex editor, Python, System Informer, x32dbg, Ghidra); have them ready before you start.
+Each tutorial page has **See it yourself** boxes: a free tool, the exact clicks, and a description of what you should be looking at. The screenshots for those boxes are still being added; until they are, each box carries a text placeholder that says what the capture shows, so you know what to look for on your own screen. Document 01 opens with the list of tools to install (PE-bear, Detect It Easy, a hex editor, Python, System Informer, x32dbg, Ghidra); have them ready before you start.
 
 ## The idea in one paragraph
 
@@ -57,8 +81,9 @@ open beside the text. The tools are small enough to read whole:
 
 | file | lines | what it is |
 |---|---|---|
-| `tools/ksattack.py` | ~80 | the keystream attack alone, as an experiment |
-| `tools/unuriel.py` | ~750 | the unpacker: derive, rebuild, and the live fallback |
+| `tools/ksattack.py` | ~90 | the keystream attack alone, as an experiment |
+| `tools/attack_figures.py` | ~180 | draws the five figures in document 02 from a protected exe (needs numpy and matplotlib) |
+| `tools/unuriel.py` | ~830 | the unpacker: derive, rebuild, and the live fallback |
 | `tools/mkoffsets.py` | ~1800 | every offset resolver, one method each |
 | `patcher/src/triarch_patcher/pipeline.py` | ~560 | the seven steps |
 | `stub/uriel_stub.cpp` | ~3500 | the DLL: hooks, natives, Python bootstrap |

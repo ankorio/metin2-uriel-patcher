@@ -9,7 +9,6 @@ world. Second, and more useful day to day: print the race histogram, which is
 the practical way to discover the race NUMBER for a mob you only know by name.
 """
 CAPABILITIES = ["read"]
-ENABLED = True
 EVERY = 4.0
 NAME_LIKE = ""          # if set, list every matching actor individually
 

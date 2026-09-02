@@ -335,10 +335,21 @@ def _call(rec, hook, *args):
         return True
 
 
+HOOKS = ("on_load", "on_unload", "on_update")
+
+
 def _load_mod(name, path):
     g = {"__name__": "mod_" + name, "__file__": path,
          "__mod_dir__": os.path.dirname(path)}
     exec(compile(read_bytes(path), path, "exec"), g)
+
+    # The host calls exactly these three hooks. A mod that defines another
+    # on_* name (on_tick, say) would otherwise sit there never running and
+    # never hearing why.
+    for k in sorted(g):
+        if k.startswith("on_") and k not in HOOKS:
+            log("mod '%s': defines %s, which the host never calls (hooks are %s)"
+                % (name, k, ", ".join(HOOKS)))
 
     # Settings whose names match a module-level constant in the mod override
     # it. That keeps mods plain - they declare defaults as normal constants and
@@ -367,7 +378,10 @@ def _load_mod(name, path):
            "faults": 0, "enabled": True,
            "caps": list(g.get("CAPABILITIES", []))}
     _mods[name] = rec
-    log("loaded mod '%s' caps=%s" % (name, rec["caps"] or ["read"]))
+    # Say so when nothing in the config mentions this mod: is_enabled() defaults
+    # to True, so a stray folder loads silently otherwise.
+    note = "" if name in _cfg else " (no config section - enabled by default)"
+    log("loaded mod '%s'%s caps=%s" % (name, note, rec["caps"] or ["read"]))
     _call(rec, "on_load", _api)
     return rec
 

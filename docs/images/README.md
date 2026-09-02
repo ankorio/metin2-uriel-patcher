@@ -1,12 +1,12 @@
-# Screenshots to add
+# Screenshots to add — contributor note
 
-Placeholders in the tutorials reference the files below. Capture each one on a lab VM, crop to the relevant panel, save as PNG under `docs/images/` with exactly this file name, and the Markdown will pick it up.
+**Contributors:** this file is a work list, not part of the tutorial. Each tutorial page currently shows a text placeholder (`*[Screenshot 01-A goes here — file ...]*`) where one of the screenshots below belongs. To close one: capture it on a lab VM, crop to the relevant panel, save it as PNG under `docs/images/` with exactly the file name given, then replace the placeholder line in the document with an image reference in the form `![Screenshot 01-A: <the description from the placeholder>](images/<file>)`.
 
 | id | file | what to capture | referenced from |
 |---|---|---|---|
 | 01-A | `01-A-pebear-sections-and-entropy.png` | PE-bear 'Section Hdrs' of the PROTECTED triarch.exe (injected 3-letter section visible) side by side with Detect It Easy's entropy view showing .text at ~8.0 | 01, end of 'Background: what a PE file looks like' |
 | 01-B | `01-B-hxd-page0-and-ksattack.png` | HxD at offset 0x400 of the protected exe (page 0 of .text) beside a terminal showing `python tools/ksattack.py triarch.exe` output | 01, end of 'Transformation 1' |
-| 01-C | `01-C-sysinformer-text-protections.png` | System Informer → Memory tab of the RUNNING protected client, sorted by address, showing alternating R / RX pages inside .text (0x410000+) | 01, end of 'Transformation 2' |
+| 01-C | `01-C-sysinformer-text-protections.png` | System Informer → Memory tab of the RUNNING protected client, sorted by address, showing alternating R / RX pages inside .text (0x410000 upward: .text is at RVA 0x10000, base 0x400000) | 01, end of 'Transformation 2' |
 | 01-D | `01-D-pebear-imports-and-iat-bytes.png` | PE-bear Imports tab (only client_x86.dll → FireInTheHole) plus the hex view at the IAT data directory showing RVAs, 0x8000xxxx ordinals and zero separators | 01, end of 'Transformation 3' |
 | 01-E | `01-E-pebear-entrypoint-nopsled.png` | PE-bear Optional Hdr with Entry Point = injected section RVA, and the Disasm pane at that RVA full of 90 (NOP) bytes | 01, end of 'Transformation 4' |
 | 01-F | `01-F-x32dbg-memory-map.png` | x32dbg attached to the running PROTECTED client: Memory Map (client_x86.dll present) and the CPU pane showing readable code at an already-executed .text address | 01, end of 'How each transformation was discovered' |
@@ -16,7 +16,7 @@ Placeholders in the tutorials reference the files below. Capture each one on a l
 | 02-D | `02-D-oep-call-jmp.png` | PE-bear (or Ghidra) at the RESTORED entry point of triarch_clean.exe: CC padding, then `call` immediately followed by `jmp` | 02, end of section 4 (finding the OEP) |
 | 02-E | `02-E-before-after-imports.png` | Two PE-bear windows side by side: Imports of the protected exe (1 DLL) vs the clean exe (22 DLLs); clean exe's Section Hdrs showing .unuriel | 02, end of section 5 (rebuild) |
 | 03-A | `03-A-patcher-window-and-folder.png` | TriarchPatcher.exe log window after a successful 7-step run, plus an Explorer view of the game folder with triarch_clean.exe, uriel_stub.dll, the two .ini files, mods\ and _patcher\ | 03, end of 'The steps in order' (before the --live section) |
-| 03-B | `03-B-stub-and-mods-logs.png` | _patcher\\uriel_stub.log and mods\mods.log opened side by side right after the first launch of the patched client | 03, end of 'Output files and what breaks without each' |
+| 03-B | `03-B-stub-and-mods-logs.png` | _patcher\uriel_stub.log and _patcher\mods.log opened side by side right after the first launch of the patched client | 03, end of 'Output files and what breaks without each' |
 
 Conventions: 1x scale, no personal data in window titles or paths, the protected file is always called `triarch.exe` and the rebuilt one `triarch_clean.exe`.
 

@@ -450,6 +450,7 @@
       "requires": [
         "player-ready"
       ],
+      "adapter": "vec2",
       "doc": "Destination (x, y) the current route is heading to, written by CPythonPlayer::AutoMoveToPosition just before the active flag. Diagnostic: a stale destination with active=1 means the flag was never cleared."
     }
   ],

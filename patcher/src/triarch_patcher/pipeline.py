@@ -414,6 +414,23 @@ def step_mods(ctx, log):
     dst = os.path.join(ctx["folder"], MODS_DIR)
     n = _copy_tree(src, dst, log, skip_existing=("config.json",))
     log("installed %d file(s) -> %s\\" % (n, MODS_DIR))
+    # Name every mod folder that went in, and point out the ones the installed
+    # config.json does not mention: the host enables those by default, which
+    # is how a stray checkout folder once shipped and armed itself at login.
+    mods = sorted(d for d in os.listdir(src)
+                  if os.path.isfile(os.path.join(src, d, "main.py")))
+    for m in mods:
+        log("    mod %s" % m)
+    try:
+        import json
+        with open(os.path.join(dst, "config.json")) as f:
+            cfg = json.load(f)
+    except Exception:
+        cfg = {}
+    unlisted = [m for m in mods if m not in cfg]
+    if unlisted:
+        log("    note: no config.json section, so enabled by default: %s"
+            % ", ".join(unlisted), "nudge")
     _stamp_build_constants(ctx, dst, log)
 
 

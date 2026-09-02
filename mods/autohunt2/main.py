@@ -64,7 +64,6 @@ functions keeps the pair consistent; hand-writing those fields would not.
 CAPABILITIES = ["read", "target", "attack", "ui"]
 
 # ---- configuration --------------------------------------------------------
-ENABLED = True
 # Both of these are the autohunt window's own controls, and both default to
 # None = "the player owns it, do not touch".
 #

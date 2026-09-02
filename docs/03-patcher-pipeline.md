@@ -137,11 +137,9 @@ The sha256 check catches one specific historical accident: PyInstaller finding U
 >
 > 1. Copy `TriarchPatcher.exe` next to `triarch.exe` and run it. The log window colours each step; the same text lands in `_patcher\patcher_run.log`.
 > 2. When it finishes, list the game folder: `triarch_clean.exe`, `uriel_stub.dll`, `uriel_offsets.ini`, `uriel_natives.ini`, `mods\`, `_patcher\`. Open the two `.ini` files — every line is an address that was derived minutes ago from the file in front of you.
-> 3. Launch `triarch_clean.exe --game`. In `_patcher\` the file `uriel_stub.log` appears (the DLL announcing what it armed) and `mods\mods.log` (the mod host listing the mods it loaded).
+> 3. Launch `triarch_clean.exe --game`. In `_patcher\` the file `uriel_stub.log` appears (the DLL announcing what it armed) and, in the same folder, `mods.log` (the mod host listing the mods it loaded).
 >
-> ![Screenshot 03-A: the patcher's log window after a successful run, and the game folder listing showing the generated files](images/03-A-patcher-window-and-folder.png)
->
-> *Screenshot placeholder 03-A — see [images/README.md](images/README.md).*
+> *[Screenshot 03-A goes here — file `images/03-A-patcher-window-and-folder.png`: the patcher's log window after a successful run, and the game folder listing showing the generated files. See [images/README.md](images/README.md).]*
 
 ## Evidence: one full run, one live boot
 
@@ -174,15 +172,44 @@ NATIVE: module 'triarch_native' registered, 8 native(s) armed
 ```
 
 and from `_patcher\mods.log`: `mod host up api=v23`, one `loaded mod` line
-per enabled mod, no tracebacks. The client reached the login screen and was
+per enabled mod, no tracebacks. The `8 native(s)` in the lines above are the
+**gateway natives** declared in `mods/natives.json` — engine functions reached
+through `triarch_native.call`. The 22 **stub functions** that make up the
+`triarch_native` module itself are a different count; document 05 keeps the
+two apart. The client reached the login screen and was
 still running, ticking the anti-cheat slot every frame, 100 seconds later.
 No REJECT or FAIL line appeared in either log.
 
 One thing the boot showed that is worth knowing: a probe mod that imports
 `triarch_native` during its `on_load` saw `None`. The mod host's first tick
 ran 82 ms *before* the stub registered the module. Mods that need natives at
-load time must wait for the first `on_tick`, or be reloaded once; the shipped
+load time must wait for the first `on_update`, or be reloaded once; the shipped
 mods do the former.
+
+### What to expect, command by command
+
+The numbers above are scattered through three documents. This table collects
+them so a run can be checked line by line without reading the chapters. "On the
+reference build" means the PE timestamp 2026-08-30 build the evidence was
+recorded on; timings are from an ordinary desktop.
+
+| Command | Line to look for | On the reference build | If it differs |
+|---|---|---|---|
+| `python tools/ksattack.py triarch.exe` | `.text raw 0x400, N pages, sampling M`, then `offsets with a weak mode (<5%): N`, then `wrote keystream.bin (unverified)` | 17759 pages; 0 weak; about 2 s | Far fewer pages: not the protected exe, or `.text` was not found. Weak offsets: the vote is noisier than on any build seen — do not trust the key until `derive` agrees. |
+| `python tools/ksattack.py triarch.exe triarch_clean.exe` | `keystream constant across 400/400 sampled pages`; `assume plaintext 0x00 : 4096/4096 (100.0%)` | exactly that | Under 4096: the twin is a different build, or the key is not tiled per page the way document 01 describes. |
+| `python tools/unuriel.py derive triarch.exe -o profile.json` | `keystream : recovered from N pages of ciphertext, N weak offset(s)` | `0 weak offset(s)`; about 12 s in total | 1–64 weak: inspect before trusting. Over 64: `derive` stops on purpose ("the file is not what we think it is"). |
+| same | `IAT : 22 groups, 626 imports (34 by ordinal), 0 name(s) not in the table` | as shown | Names not in the table with `inherited` lines: the build added imports — fine, but read them. An unresolved group: regenerate `imports_db.json` with a live harvest (document 02, section 6). |
+| same | `OEP : 0x... (rva 0x...) (3 candidates)` | 3 candidates, top score 11 | 0 candidates: the key is wrong or the CRT entry's shape changed. More than 3: check that the winner scored 11 (cookie write found, `jmp` target never called). |
+| `python tools/unuriel.py rebuild ... --stub-dll uriel_stub` | the eight `[1]`–`[8]` lines, the `.unuriel` section, `entry point 0x... -> 0x...`, `wrote ... (N bytes)` | about 8 s; about 97 MB written | `source_sha256` mismatch: the profile was derived from a different file. |
+| `python tools/mkoffsets.py triarch_clean.exe` | one `kName = 0x...` per key, `kSlot2ArgBytes = 0x1C`, `all anchors resolved`, exit 0 | 70 keys; about 60 s | `*** NOT FOUND ***` on a key: a shape stopped matching and needs a new anchor (document 04, section 9). A changed non-address value (`kSkipCollisionOff`, `kPlayerWalkState`, ...): a class grew or a constant moved. |
+| patcher `[2/7]` and `[3/7]` | the same numbers as `derive` and `rebuild` above | | |
+| patcher `[5/7]` | `8 native(s) armed, 0 rejected` | as shown | `rejected > 0`: a declared stack width disagrees with the binary's `ret N`; the entry is dropped and the preceding `rejected:` line names it. |
+| patcher `[6/7]` | `wrote uriel_stub.dll (181248 bytes)` | as shown, for the DLL built from this tree | A different size with the sha256 check passing is simply a different stub build. A sha256 failure is the UPX accident described under step 6. |
+| patcher `[7/7]` | `installed N file(s) -> mods\` | 37 from this tree's `mods/` (the evidence run above reported 39 because the checkout it was built from carried one extra mod folder, since removed — see the note on default enablement in document 07) | More than your `mods/` holds: extra folders were bundled, and every one of them loads unless `config.json` says otherwise. |
+| patcher, last line | `patched in Ns - launch triarch_clean.exe --game` | 230–240 s, almost all of it step 4 | Much longer: a slow disk, or an antivirus scanning the 97 MB output as it is written. |
+| `_patcher\uriel_stub.log` | `NATIVE: 8 native(s), 12 field(s) loaded from uriel_natives.ini` | as shown | Fewer: a rejected entry, listed just above it. `NATIVE: no uriel_natives.ini`: step 5's output is missing and mods will silently do nothing. |
+| same | `NATIVE: module 'triarch_native' registered, 8 native(s) armed` | about 6 s after `DllMain` | Absent: the launcher never appeared (`kPyRunLine` / `kPyLauncherInst` missing — "mod host disabled" in step 4) or `InitModule` faulted; one `NATIVE:` line says which. |
+| `_patcher\mods.log` | `=== mod host up  api=v23` | the first line of the file | File absent: read the `MODS:` lines in `uriel_stub.log` — `mods.off`, or the bootstrap `status:` string. |
 
 ## The `--live` fallback path
 
@@ -224,11 +251,9 @@ The asymmetry is the point: a missing DLL fails at the loader; a missing offsets
 > **See it yourself — the stub and the mod host reporting in**
 >
 > 1. Open `_patcher\\uriel_stub.log` after the first launch: the offsets it read, the natives it armed, anything it rejected.
-> 2. Open `mods\mods.log`: one line per mod loaded, and the hot-reload messages when you save a mod file while the game runs.
+> 2. Open `_patcher\mods.log` (the mod host writes into the same folder as the stub): one line per mod loaded, and the hot-reload messages when you save a mod file while the game runs.
 >
-> ![Screenshot 03-B: uriel_stub.log and mods\mods.log open side by side after the first launch of triarch_clean.exe](images/03-B-stub-and-mods-logs.png)
->
-> *Screenshot placeholder 03-B — see [images/README.md](images/README.md).*
+> *[Screenshot 03-B goes here — file `images/03-B-stub-and-mods-logs.png`: `_patcher\uriel_stub.log` and `_patcher\mods.log` open side by side after the first launch of triarch_clean.exe. See [images/README.md](images/README.md).]*
 
 ## The `_patcher\` folder
 
@@ -260,7 +285,7 @@ There is one exception, and it is precise. Some values in `config.json` are not 
 
 `WALK_STATE` is the numeric value of the player's "auto-moving" state, read out of the engine's own comparison instruction by `tools/mkoffsets.py`. Four mods gate behaviour on it. If a game update changed the number, a copy left in `config.json` would silently stop detecting the state — a mod that used to work would just do nothing. So `_stamp_build_constants` writes these keys into `config.json` on every run, even when the file already existed, and logs `stamped build constants: nocollide.WALK_STATE=0x..` when a value changed. The write is atomic (temp file, then `os.replace`). Anything the resolver could not produce is left as shipped and noted.
 
-The rule this encodes: **a user's preference survives an update; a build fact is re-derived on every update.** `patcher/config.example.json` shows the full shape of the file.
+The rule this encodes: **a user's preference survives an update; a build fact is re-derived on every update.** `patcher/config.example.json` shows the shape of the file for the sixteen user-facing mods. It omits `routes` and the four diagnostic probes (`apidiag`, `nativeprobe`, `probe_ui`, `uispy`); the shipped `mods/config.json` carries `"enabled": false` sections for all five. Because a mod with no section loads by default (document 07, "A note on default enablement"), do not copy the example over `config.json` wholesale without adding those sections.
 
 ## How the executable is built
 

@@ -50,8 +50,12 @@ def _load_state(api):
     global _seen, _loaded
     _loaded = True
     try:
-        with open(_state_path(api), "r") as f:
+        # no `with`: the client's open() returns a pack_file without __exit__
+        f = open(_state_path(api), "r")
+        try:
             d = json.load(f)
+        finally:
+            f.close()
         _seen = d if isinstance(d, dict) else {}
     except Exception:
         _seen = {}
@@ -63,8 +67,11 @@ def _save_state(api):
     path = _state_path(api)
     try:
         tmp = path + ".tmp"
-        with open(tmp, "w") as f:
+        f = open(tmp, "w")
+        try:
             json.dump(_seen, f)
+        finally:
+            f.close()
         os.replace(tmp, path)
     except Exception as e:
         api.log("shoppos: state save ERR %r" % (e,))

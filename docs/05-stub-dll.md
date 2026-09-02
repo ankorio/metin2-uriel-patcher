@@ -14,6 +14,7 @@ This is a reference, not a tutorial, but every mechanism is explained from first
   - [1.3 FireInTheHole: the one export](#13-fireinthehole-the-one-export)
   - [1.4 The two ini files, read once](#14-the-two-ini-files-read-once)
   - [1.5 Logs and control files](#15-logs-and-control-files)
+  - [1.6 The boot timeline, measured](#16-the-boot-timeline-measured)
 - [2. Architecture](#2-architecture)
   - [2.1 The per-frame tick](#21-the-per-frame-tick)
   - [2.2 Driving the game's own Python](#22-driving-the-games-own-python)
@@ -25,17 +26,17 @@ This is a reference, not a tutorial, but every mechanism is explained from first
   - [4.1 Techniques used](#41-techniques-used)
   - [4.2 The hook table](#42-the-hook-table)
   - [4.3 Hook by hook](#43-hook-by-hook)
-- [5. Every native exposed to Python](#5-every-native-exposed-to-python)
-  - [5.1 The module table](#51-the-module-table)
-  - [5.2 Native by native](#52-native-by-native)
+- [5. Stub functions and gateway natives](#5-stub-functions-and-gateway-natives)
+  - [5.1 The 22 stub functions on `triarch_native`](#51-the-22-stub-functions-on-triarch_native)
+  - [5.2 Stub function by stub function](#52-stub-function-by-stub-function)
   - [5.3 The `call` gateway and uriel_natives.ini](#53-the-call-gateway-and-uriel_nativesini)
   - [5.4 Typed fields](#54-typed-fields)
   - [5.5 Environment-variable channels](#55-environment-variable-channels)
 - [6. Notable engineering](#6-notable-engineering)
 - [7. Building](#7-building)
 - [8. Extending the stub](#8-extending-the-stub)
-  - [8.1 Adding a native without touching C++](#81-adding-a-native-without-touching-c)
-  - [8.2 Adding a native that needs C++](#82-adding-a-native-that-needs-c)
+  - [8.1 Adding a gateway native without touching C++](#81-adding-a-gateway-native-without-touching-c)
+  - [8.2 Adding a stub function, which needs C++](#82-adding-a-stub-function-which-needs-c)
   - [8.3 Adding a hook](#83-adding-a-hook)
 - [9. Quick reference](#9-quick-reference)
 
@@ -47,7 +48,7 @@ This is a reference, not a tutorial, but every mechanism is explained from first
 
 Recall from chapter 01 that the protected `triarch.exe` imports exactly one DLL by name, `client_x86.dll`, and that the game calls one function from it: `FireInTheHole`. The unpacker (`tools/unuriel.py`, function `rebuild()`) has two ways to deal with that import:
 
-- With no `--stub-dll` argument it drops the import entirely and rewrites every `call [slot]` to `FireInTheHole` into a `call` to a nine-byte in-image stub that writes a scratch pointer into the out-parameter and returns 1.
+- With no `--stub-dll` argument it drops the import entirely and rewrites every `call [slot]` to `FireInTheHole` into a `call` to a thirteen-byte in-image stub that writes a scratch pointer into the out-parameter and returns 1 (`mov eax,[esp+4]; mov dword ptr [eax], scratch; mov al, 1; ret` — 4 + 6 + 2 + 1 bytes, emitted in `rebuild()`).
 - With `--stub-dll uriel_stub` — which is what the patcher passes (`patcher/src/triarch_patcher/pipeline.py`, `step_rebuild`) — the protector's import is **retained but renamed**: the same IAT slot, the same function name `FireInTheHole`, but the DLL name written into the new import descriptor is `uriel_stub`. The relevant lines in `rebuild()`:
 
 ```python
@@ -107,6 +108,8 @@ The stub contains **no hardcoded game addresses**. It is the same DLL for every 
 
 Both are produced by `tools/mkoffsets.py` ([docs/04](04-offsets-and-ini-files.md)) from the decrypted executable, and the patcher runs the resolver once so the two files describe the same build.
 
+One caveat to "no hardcoded addresses": the stub does carry a handful of compiled-in *layouts* — MSVC container internals (the `std::map` node's `_Isnil` byte, a `std::vector`'s begin/end pair, the `std::string` short-string form) and a few game-struct member offsets (the ground item's two strings, the offline-shop record array and its stride, the shop entity's name and position). They are listed together at the end of section 5.2, and each is flagged in the source as verified live against the deployed build. Container layouts are a property of the compiler and survive a game rebuild; the game-struct offsets are the first thing to re-check when a build changes, and the reason the README's rule says "address" rather than "number".
+
 `LoadOffsets()` splits the keys into a **required** list (the anti-cheat replacement and the network/auth hooks) and an **optional** list. A missing required key is fatal — the stub runs inert. A missing optional key merely disables one feature: the code that would use it checks `if (!g_off.xxx) return;`. This is how an ini written for an older stub keeps working with a newer DLL, and vice versa.
 
 Both files are read **exactly once, in `DllMain`**. The values land in the static structs `g_off`, `g_glue`, `g_singleton`, `g_nat[]` and `g_fld[]` and are never re-read. The practical consequence: regenerating either ini under a running client changes nothing. A newly declared native or typed field needs the client restarted before Python can see it.
@@ -131,6 +134,32 @@ Control files, all in `_patcher\`, all checked at load:
 | `mods.off` | Do not bootstrap the mod host this run. |
 | `shopcap.on` | Arm the offline-shop price capture. |
 | `prices_rotate.req` | (Checked at capture time, not at load.) Rotate the price CSV at the next capture; consumed. |
+
+### 1.6 The boot timeline, measured
+
+Sections 1.2–1.5 and 2.1–2.5 describe the pieces; this is *when* they run. The times are from one measured boot of a patched client to the login screen, in seconds after `DllMain`, read off `uriel_stub.log` and `mods.log` (both stamp milliseconds):
+
+```mermaid
+sequenceDiagram
+    participant L as Windows loader
+    participant S as uriel_stub.dll
+    participant G as triarch_clean.exe
+    participant P as embedded Python
+    L->>S: DllMain (t = 0.000 s)
+    Note over S: LoadOffsets and LoadNatives read both ini files once, 17 hooks installed (by +0.015 s)
+    L->>G: entry point (CRT start-up)
+    G->>S: FireInTheHole(ppOut) (+0.330 s)
+    G->>S: slot 0 Initialize (+0.331 s)
+    Note over G: window, renderer, interpreter come up (about 5.7 s)
+    G->>S: slot 1 anticheat.Tick, first frame (+6.002 s)
+    S->>P: RunLine(bootstrap), modhost.boot() (+6.085 s)
+    P-->>S: TRIARCH_MODS = ok
+    Note over P: first pump, mods load; a mod importing triarch_native here sees None
+    S->>P: InitModule("triarch_native", g_methods) (+6.154 s)
+    Note over S,P: from here on, pump every frame, natives available
+```
+
+Two things to read off it. First, for the six seconds before the first tick the stub does nothing but answer `FireInTheHole` and slot 0; everything else is the loader and the game's own start-up. Second, the mod host comes up about 70 ms before the module (82 ms on the boot document 03 records) because the registration poll runs one tick after the bootstrap poll (section 2.5) — which is why a mod must not touch `triarch_native` in `on_load` (document 06, section 8).
 
 `Log()` has one subtlety worth learning from. Several hooks run between a Win32 call and the caller's subsequent `GetLastError()`. Opening a file with `fopen(..., "a")` sets the thread's last-error to `ERROR_ALREADY_EXISTS` even on success, and the first version of the stub made the client read 183 instead of `WSAEWOULDBLOCK` after `connect()` and report "server is down". Every logging function therefore saves `GetLastError()` on entry and restores it on exit.
 
@@ -274,7 +303,7 @@ A **hook** redirects a call the game makes into code of ours. The stub uses four
 
 **IAT slot patch.** For imported Windows APIs the game calls through the import address table, a hook is a pointer swap: save the original pointer, write ours. No code is rewritten and no trampoline is needed; the saved pointer *is* the original. The resolver supplies the address of each slot (`kIat*`) by import name.
 
-All code writes go through `VirtualProtect` (make the page writable, write, restore) followed by `FlushInstructionCache`.
+All code writes go through `VirtualProtect` (make the page writable, write, restore) followed by `FlushInstructionCache`. The opcode bytes named in this section (`E9 rel32`, `C2 imm16`, `55 8B EC`, `53 8B DC`, ...) are tabulated in the [glossary](08-glossary.md#x86-byte-patterns-used-in-this-repo).
 
 ### 4.2 The hook table
 
@@ -317,15 +346,17 @@ Seventeen hooks are installed at load, plus one IAT pointer that is read but not
 
 **#13–#16 — auth tracing.** Four tail hooks that only count. They were installed when the login stalled after `GC_PHASE(10)` and the question was which stage was reached; `TraceCall` logs the first six hits of each and every 500th thereafter. `getPcName` and `getHwProfileId` are the two hardware-fingerprint sources the protector reads, found by the resolver as "the function that calls this import".
 
-**#17 — offline-shop price capture.** After `RecvOfflineshopPacket` has run, the `CPythonOfflineshop` singleton's 99-byte item records are populated. `ShopCapture` reads the instance through a double indirection (`**(global)`), walks up to 108 records, and appends `shopId, seller, title, vnum, price, count, sockets, attrs, ts` to a timestamped CSV. Files rotate at a sweep boundary (a mod drops `prices_rotate.req`) or after 15 minutes, so one CSV is one complete pass. The hook is inert unless `shopcap.on` existed at load; the record layout constants (`kShopArr = 0x5458`, stride `0x63`, price at `+0x5B`) are the one place in this file where struct offsets are compiled in rather than read from the ini — they were verified live against the deployed build and are flagged as such in the source.
+**#17 — offline-shop price capture.** After `RecvOfflineshopPacket` has run, the `CPythonOfflineshop` singleton's 99-byte item records are populated. `ShopCapture` reads the instance through a double indirection (`**(global)`), walks up to 108 records, and appends `shopId, seller, title, vnum, price, count, sockets, attrs, ts` to a timestamped CSV. Files rotate at a sweep boundary (a mod drops `prices_rotate.req`) or after 15 minutes, so one CSV is one complete pass. The hook is inert unless `shopcap.on` existed at load; the record layout constants (`kShopArr = 0x5458`, stride `kShopStride = 0x63`, price at `kRecPrice = 0x5B`) are compiled in rather than read from the ini — one of the few such places in the file, all collected at the end of section 5.2 — and were verified live against the deployed build and are flagged as such in the source.
 
 ---
 
-## 5. Every native exposed to Python
+## 5. Stub functions and gateway natives
 
-### 5.1 The module table
+Two words are kept apart throughout this chapter. A **stub function** is one of the 22 entries the DLL registers on the `triarch_native` module, implemented in C++ in this file. A **gateway native** is an engine function declared in `mods/natives.json` — eight on the shipped registry — and reached through the `call` stub function, with its address and stack width resolved per build into `uriel_natives.ini`. A log line such as `8 native(s) armed` counts gateway natives.
 
-`RegisterNativeModule()` registers these 22 functions on `triarch_native`. All are `METH_VARARGS`. "Wrapper" is the `mods/api.py` helper a mod normally calls instead.
+### 5.1 The 22 stub functions on `triarch_native`
+
+`RegisterNativeModule()` registers these 22 stub functions on `triarch_native`. All are `METH_VARARGS`. "Wrapper" is the `mods/api.py` helper a mod normally calls instead.
 
 | # | Python name | C function | Arguments | Returns | Wrapper in api.py |
 |---|---|---|---|---|---|
@@ -352,16 +383,16 @@ Seventeen hooks are installed at load, plus one IAT pointer that is read but not
 | 21 | `minimap_mark` | `TriarchMiniMapMark` | `(id, x, y, vid, name)` | 1/0 | `api.mark_mob(id, vid, label)` |
 | 22 | `minimap_unmark` | `TriarchMiniMapUnmark` | `(id)` | 1/0 | `api.unmark_mob(id)` |
 
-Beyond these 22, the `call` gateway (#1) reaches the engine functions declared in `mods/natives.json` — eight on the shipped registry — and `field`/`set_field` reach the twelve declared typed fields. Those are listed in 5.3 and 5.4.
+Beyond these 22, the `call` stub function (#1) reaches the eight gateway natives declared in `mods/natives.json`, and `field`/`set_field` reach the twelve declared typed fields. Those are listed in 5.3 and 5.4.
 
 General safety notes that apply to every entry:
 
-- **Thread and timing.** Natives are called from Python, which runs inside the pump, which runs inside slot 1, on the game's main thread. There is no locking because there is no concurrency; the cost is that a slow native (`http_post`) stalls a frame.
-- **Faults.** Every native that touches game memory wraps the access in `__try/__except`. A fault becomes a Python exception (via `Py_BuildException`) rather than a crash, and for the `call` gateway the offending native is *disarmed* for the rest of the session.
-- **"Not wired" is never "empty".** Where a native could return 0 both for "nothing there" and "the offset is missing", it raises for the second case. `ground_items()` on an unresolved `kItemInst` is an exception, not an empty floor; the source records the hour that ambiguity cost.
+- **Thread and timing.** Stub functions are called from Python, which runs inside the pump, which runs inside slot 1, on the game's main thread. There is no locking because there is no concurrency; the cost is that a slow native (`http_post`) stalls a frame.
+- **Faults.** Every stub function that touches game memory wraps the access in `__try/__except`. A fault becomes a Python exception (via `Py_BuildException`) rather than a crash, and for the `call` gateway the offending gateway native is *disarmed* for the rest of the session.
+- **"Not wired" is never "empty".** Where a stub function could return 0 both for "nothing there" and "the offset is missing", it raises for the second case. `ground_items()` on an unresolved `kItemInst` is an exception, not an empty floor; the source records the hour that ambiguity cost.
 - **Every pointer is validated** (`IsBadReadPtr`, singleton double-dereference checks) before use, and singletons are looked up per call, never cached, because they do not exist on the login and character-select screens.
 
-### 5.2 Native by native
+### 5.2 Stub function by stub function
 
 **`call(name, *dwords)`** — the generic gateway. Looks `name` up (case-insensitive) in the table loaded from `[natives]`, marshals exactly `stack/4` unsigned integers from the tuple, resolves the `this` singleton if the entry declares one, and runs `TrampolineRaw`. That assembly routine pushes the arguments right-to-left, loads `ecx`, calls the target, and then **restores ESP from a saved global unconditionally** — so a declared calling convention that disagrees with the real one becomes a survivable, loggable mistake rather than silent stack corruption that surfaces somewhere else. (`__try` cannot catch a convention mismatch; nothing is raised.) Returns `Py_BuildValue("i", eax)` for `u32`/`vid` returns and None for `void`; entries declaring `i64` or `f32` returns are rejected at load rather than truncated. See 5.3 for the table and its guarantees. Consumers: `autohunt2` (`api.player.FindAndSetNewTarget`, `OnPressActor`, `UseAutoSkills`), `nativeprobe`.
 
@@ -391,6 +422,20 @@ General safety notes that apply to every entry:
 
 **`minimap_mark(id, x, y, vid, name)`, `minimap_unmark(id)`** — the blinking target mark on both the minimap and the atlas. The Python binding `miniMap.AddWayPoint` hardcodes mark type 6 (atlas only); the native underneath takes the type, and type 13 additionally auto-tracks a VID every frame so a wandering mob stays marked with no per-frame work. `AddWayPoint` has a non-standard convention — `x` travels in `XMM3`, and the name is a `std::string` passed *by value* (24 bytes on the stack) — so it cannot ride the generic gateway and gets a hand-rolled thunk, `MiniMapAddRaw`, which builds the string in short-string-optimised form (capacity 15, so the callee's destructor never frees) and truncates the label to 15 characters. Consumer: `entscan`, via `api.mark_mob`.
 
+**The compiled-in layouts, collected.** These are the numbers in this file that are *not* read from an ini (section 1.4). Names are the source's:
+
+| Constant | Value | What it is | Used by |
+|---|---|---|---|
+| `NODE_ISNIL` | `0x0D` | the `_Isnil` byte of an MSVC `std::map` red-black-tree node; root at `object + 4` | `ground_items` |
+| `GITEM_STR1`, `GITEM_STR2` | `0x38C`, `0x3A4` | the two `std::string` members of `SGroundItemInstance` | `ground_item_str` |
+| `CHR_LIST` | `manager + 0x28` | the `std::unordered_map` element list head (`CHR_ALIVE_MAP + 4`); `next` at `+0`, VID at `+8`, instance at `+0xC` | `actors` |
+| `kShopArr`, `kShopStride` | `0x5458`, `0x63` | the offline-shop record array and its 99-byte record | `ShopCapture` (hook #17) |
+| `kRecVnum`, `kRecCount`, `kRecSock`, `kRecAttr`, `kRecPrice` | `0x00`, `0x04`, `0x08`, `0x20`, `0x5B` | the fields of one record | `ShopCapture` |
+| vector at `+0x5C/+0x60` | | `CPythonOfflineshop`'s `std::vector<Entity*>` begin/end | `offline_shops` |
+| `kShopEntName`, `kShopEntPos` | `0x35C`, `0x390` | the shop entity's name `std::string` (capacity word at `+0x14` decides short-string form) and position floats | `offline_shop_at` |
+
+The container internals (`_Isnil`, the `+4` root, begin/end pairs, the short-string capacity test) are properties of the MSVC standard library and hold across game builds. The game-struct offsets in the same table are exactly the kind of number document 04 says never to type in; they are tolerated here because each was verified live on the deployed build, and they would move to the ini the day a resolver for them exists.
+
 ### 5.3 The `call` gateway and uriel_natives.ini
 
 Why a single `call(name, ...)` entry point rather than one Python function per native? A `PyCFunction` receives the *module* as `self`, not any per-function identity, so one `PyMethodDef` per native would need a generated code thunk per native. A single dispatcher reading a table needs no code generation — and that is what makes adding a native an **ini edit rather than a rebuild** of the DLL.
@@ -407,7 +452,7 @@ Each line is parsed by `LoadNatives()` into a `Native {name, va, conv, stack, th
 
 `checked` is the resolver's cross-check, and it is the guarantee that makes the gateway trustworthy: `mkoffsets.Resolver.natives()` sums the declared stack widths from `natives.json` (4 bytes per `i32/u32/vid/ptr/cstr/bool32`, 8 per `i64/u64/f64`; `this` is in `ECX` and not counted) and compares the sum with the immediate in the function's `ret N` instruction, read with a disassembler. A mismatch does not warn — the entry is **dropped**, because a wrong argument spec is a stack imbalance at runtime, not an exception. `ret_imm()` also detects two functions packed without padding (their `ret` immediates disagree) and takes the leading run; `OpenCharacterMenu` is exactly that case. `cdecl` functions carry no immediate and cannot be cross-checked; they are emitted `checked=0` and the stub accepts them only because `cdecl` cannot be validated at all — the call site must have been read by hand.
 
-The shipped `mods/natives.json` declares eight natives, all `x86-msvc-thiscall`:
+The shipped `mods/natives.json` declares eight gateway natives, all `x86-msvc-thiscall`:
 
 | Name | `this` | Args (stack bytes) | Returns | What it does |
 |---|---|---|---|---|
@@ -520,7 +565,7 @@ At patch time (`pipeline.step_deploy`) the patcher reads the embedded DLL, check
 
 ## 8. Extending the stub
 
-### 8.1 Adding a native without touching C++
+### 8.1 Adding a gateway native without touching C++
 
 If the engine function you want is an ordinary `__thiscall`/`__stdcall`/`__cdecl` with integer-sized stack arguments and a `void` or 32-bit integer return, the DLL does not change at all.
 
@@ -532,7 +577,7 @@ If the engine function you want is an ordinary `__thiscall`/`__stdcall`/`__cdecl
 
 A typed field is the same loop with a `fields`/`instance_fields` entry and a resolver that produces a struct *offset* rather than a function address.
 
-### 8.2 Adding a native that needs C++
+### 8.2 Adding a stub function, which needs C++
 
 When the function has a non-standard convention, walks a container, or must combine several reads (the ground-item walk, `minimap_mark`):
 
@@ -563,4 +608,4 @@ When the function has a non-standard convention, walks a container, or must comb
 
 **Tick cadence** (at 60 fps): pump every frame; `AttackTick` every 3rd; `HuntTick` every 15th (~4 Hz, matching the engine's own hunt loop); bootstrap and native-registration polls every 30th until they succeed.
 
-**Counts:** 8 vtable slots; 17 hooks installed at load plus 1 IAT pointer read; 3 on-demand code/data patches; 22 functions on `triarch_native`; 8 declared gateway natives and 1 rejected; 12 declared typed fields.
+**Counts:** 8 vtable slots; 17 hooks installed at load plus 1 IAT pointer read; 3 on-demand code/data patches; 22 stub functions on `triarch_native`; 8 gateway natives declared in `mods/natives.json` and 1 rejected; 12 declared typed fields. When a log line says `N native(s)`, it counts gateway natives.

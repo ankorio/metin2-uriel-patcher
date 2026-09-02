@@ -19,7 +19,7 @@ CAPABILITIES = ["ui", "config"]
 # _show is the LIVE per-client state and is deliberately never persisted:
 # both clients read the same config.json, so a saved "SHOW" key made one
 # window's F10 close the other's.
-OPEN_ON_START = True
+OPEN_ON_START = False   # off by default; the shipped config sets it explicitly
 TOGGLE_KEY = 68         # app.DIK_F10
 _show = None            # None until on_load seeds it from OPEN_ON_START
 

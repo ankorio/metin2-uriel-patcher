@@ -6,6 +6,7 @@ is keyed off something stable across builds - a literal string, an import name,
 or a structural relationship - never a raw offset.
 
     python mkoffsets.py <decrypted.exe> [-o offsets.h] [--check]
+                        [--natives natives.json uriel_natives.ini]
 
 `--check` compares against the values known good for sha256 f8e0db12... and is
 how you verify the resolvers still work before trusting them on a new build.
@@ -1731,6 +1732,13 @@ NATIVE_GLUE_KEYS = ("kPyInitModule", "kPyImportAddModule", "kPyModuleAddFunction
 NATIVE_SINGLETONS = ("kPlayerInst", "kCharMgrInst", "kNetStreamInst",
                      "kMiniMapInst", "kItemInst")
 
+# The field types the stub can marshal - exactly the names FieldType() in
+# uriel_stub.cpp accepts. A field whose effective ini type (adapter or type) is
+# not in this list is REJECTED here rather than emitted, because the stub used
+# to default an unknown name to u32 and hand mods a float's bit pattern as an
+# int (auto_move_dest was declared "vec2f" and nothing noticed).
+STUB_FIELD_TYPES = ("bool8", "i32", "u32", "vec2", "vector_u8")
+
 
 def write_natives_ini(path, reg_path, out_path, vals=None, r=None, log=print):
     """Emit uriel_natives.ini - the whole triarch_native gateway.
@@ -1769,9 +1777,17 @@ def write_natives_ini(path, reg_path, out_path, vals=None, r=None, log=print):
             if not o:
                 log("  field %s: %s unresolved - skipped" % (fld["name"], fld["offset"]))
                 continue
+            ftype = fld.get("adapter") or fld["type"]
+            if ftype not in STUB_FIELD_TYPES:
+                # same fail-closed treatment as a native with a bad stack width
+                p = "field %s: unknown type '%s' (stub knows %s)" % (
+                    fld["name"], ftype, "/".join(STUB_FIELD_TYPES))
+                problems.append(p)
+                log("  REJECTED %s" % p)
+                continue
             f.write("%s=%s|%08X|%s|%s\n"
                     % (fld["name"], fld["owner"], o + fld.get("offset_delta", 0),
-                       fld.get("adapter") or fld["type"], fld.get("access", "r")))
+                       ftype, fld.get("access", "r")))
         f.write("\n; name = address | convention | stack bytes | this"
                 " | return | checked\n[natives]\n")
         for x in rows:
@@ -1782,8 +1798,18 @@ def write_natives_ini(path, reg_path, out_path, vals=None, r=None, log=print):
 
 
 def main():
-    path = sys.argv[1]
-    out = sys.argv[sys.argv.index("-o") + 1] if "-o" in sys.argv else None
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("exe", help="decrypted exe")
+    ap.add_argument("-o", dest="out", default=None, metavar="offsets.h",
+                    help="write the resolved addresses as a C header")
+    ap.add_argument("--check", action="store_true",
+                    help="compare against the known-good BASELINE values")
+    ap.add_argument("--natives", nargs=2, metavar=("natives.json", "out.ini"),
+                    help="also emit the uriel_natives.ini gateway table")
+    a = ap.parse_args()
+    path, out = a.exe, a.out
     r = Resolver(path)
 
     # One key list, in resolve_all(). main() and the patcher now see exactly the
@@ -1796,7 +1822,7 @@ def main():
     for k in sorted(vals):
         v = vals[k]
         note = ""
-        if "--check" in sys.argv and k in BASELINE:
+        if a.check and k in BASELINE:
             note = "  OK" if v == BASELINE[k] else "  MISMATCH (baseline 0x%08X)" % BASELINE[k]
         print("%-*s = %s%s" % (width, k, ("0x%08X" % v) if v else "*** NOT FOUND ***", note))
     print("%-*s = %s" % (width, "kSlot2ArgBytes", ("0x%02X" % slot2) if slot2 else "*** NOT FOUND ***"))
@@ -1818,9 +1844,8 @@ def main():
     # ---- the native gateway table -----------------------------------------
     # Everything the stub needs to expose `triarch_native` WITHOUT being
     # rebuilt: adding a native later is an entry here, not a C++ edit.
-    if "--natives" in sys.argv:
-        reg = sys.argv[sys.argv.index("--natives") + 1]
-        nout = sys.argv[sys.argv.index("--natives") + 2]
+    if a.natives:
+        reg, nout = a.natives
         print("\n--- native gateway ---")
         vals["SLOT2_ARG_BYTES"] = slot2
         rows, problems, missing = write_natives_ini(path, reg, nout, vals=vals, r=r)

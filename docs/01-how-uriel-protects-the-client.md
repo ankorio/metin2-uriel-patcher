@@ -36,7 +36,8 @@ boxes marked **See it yourself** tell you exactly where to click.
 | **Ghidra** | reading the *rebuilt* executable once it is decrypted | ghidra-sre.org |
 
 A note on file offsets used below: on every build examined, `.text` starts at
-file offset `0x400`, so "page 0 of `.text`" means file bytes `0x400..0x13FF`,
+file offset `0x400` and at RVA `0x10000` (so at address `0x410000` once the
+image is loaded at its preferred base, `0x400000`), so "page 0 of `.text`" means file bytes `0x400..0x13FF`,
 page 1 is `0x1400..0x23FF`, and so on. The section table tells you the exact
 numbers for your build.
 
@@ -82,13 +83,16 @@ Three terms recur constantly:
 >
 > **Data directories** are 16 (RVA, size) pairs in the optional header that tell the loader where the interesting tables are. The ones that matter here: index 1 (import directory), index 5 (base relocations), index 10 (load config), index 12 (import address table).
 
-The section table is worth reading carefully on any binary you are new to. On a protected client it looks like this (names abbreviated; the injected section's name differs per build):
+The section table is worth reading carefully on any binary you are new to. On a protected client it has nine entries and looks like this (sizes abbreviated; the injected section's name differs per build):
 
 ```
 name      VirtualSize  VirtualAddr  RawSize     RawPtr      Characteristics
-.text     ~0x0440xxxx  0x00001000   ~0x0440xxxx 0x00000400  READ, no EXECUTE   <- code that cannot run
+.text     ~0x0440xxxx  0x00010000   ~0x0440xxxx 0x00000400  READ, no EXECUTE   <- code that cannot run
 .rdata    ...          ...          ...         ...         READ
 .data     ...          ...          ...         ...         READ|WRITE
+BINKCONS  ...          ...          ...         ...         READ               (video codec data)
+PyRuntim  ...          ...          ...         ...         READ|WRITE         (the embedded CPython runtime)
+.fptable  ...          ...          ...         ...         READ|WRITE
 .rsrc     ...          ...          ...         ...         READ
 .reloc    ...          ...          ...         ...         READ
 ywu       ...          ...          ...         ...         READ|WRITE|EXECUTE <- injected; name varies per build
@@ -97,13 +101,11 @@ ywu       ...          ...          ...         ...         READ|WRITE|EXECUTE <
 
 > **See it yourself — the section table and data directories**
 >
-> 1. Open `triarch.exe` in PE-bear. In the left tree pick **Section Hdrs**. Count the sections: the eight normal ones plus one with a random three-letter name at the end, with a tiny virtual size (`0x1000`).
+> 1. Open `triarch.exe` in PE-bear. In the left tree pick **Section Hdrs**. Count the sections: nine — the eight the linker wrote (`.text`, `.rdata`, `.data`, `BINKCONS`, `PyRuntim`, `.fptable`, `.rsrc`, `.reloc`) plus one with a random three-letter name at the end, with a tiny virtual size (`0x1000`).
 > 2. Pick **Optional Hdr → Data Directories**. Note the *Import Directory* RVA: it lies inside that last section, not in `.rdata`. Note the *IAT Directory* RVA: it lies at the start of `.rdata`, size `0xA20`.
 > 3. Run DiE on the file, click **Entropy**: `.text` reads close to 8.0 bits per byte. A normal code section of this compiler reads about 6.5.
 >
-> ![Screenshot 01-A: PE-bear Section Hdrs tab of the protected triarch.exe with the injected three-letter section at the bottom, next to the DiE entropy graph showing .text near 8.0](images/01-A-pebear-sections-and-entropy.png)
->
-> *Screenshot placeholder 01-A — see [images/README.md](images/README.md).*
+> *[Screenshot 01-A goes here — file `images/01-A-pebear-sections-and-entropy.png`: PE-bear Section Hdrs tab of the protected triarch.exe with the injected three-letter section at the bottom, next to the DiE entropy graph showing .text near 8.0. See [images/README.md](images/README.md).]*
 
 ## Transformation 1: .text is XOR-encrypted with a tiled 4096-byte key
 
@@ -131,9 +133,7 @@ At runtime, the protector decrypts pages lazily — a page is only put back into
 >    Two random pages share about 16 bytes (4096/256). Page 0 and page 1 of the protected `.text` share **140** — because two pages XORed with the *same* key stay equal wherever the underlying code bytes were equal, and x86 code is full of zeros.
 > 3. Run `python tools/ksattack.py triarch.exe` and watch the key fall out of the histogram in a few seconds.
 >
-> ![Screenshot 01-B: HxD showing .text page 0 at offset 0x400 next to a terminal running tools/ksattack.py with its '4096/4096' result](images/01-B-hxd-page0-and-ksattack.png)
->
-> *Screenshot placeholder 01-B — see [images/README.md](images/README.md).*
+> *[Screenshot 01-B goes here — file `images/01-B-hxd-page0-and-ksattack.png`: HxD showing .text page 0 at offset 0x400 next to a terminal running tools/ksattack.py with its '4096/4096' result. See [images/README.md](images/README.md).]*
 
 ## Transformation 2: .text loses its execute permission
 
@@ -164,11 +164,9 @@ Two consequences follow. First, a page that is never executed is never decrypted
 > **See it yourself — the missing execute flag**
 >
 > 1. In PE-bear, **Section Hdrs**, look at the *Characteristics* column for `.text`. Hover or click it: the flags decode to *code*, *readable* — and **no** *executable*. Compare with `triarch_clean.exe` after the rebuild, where the `IMAGE_SCN_MEM_EXECUTE` bit is back.
-> 2. With the protected client running, open it in System Informer → **Memory** tab, sort by address, and scroll through the `.text` range (`0x410000` upward if the image loaded at its preferred base). Pages that have been executed show `RX`; pages that have not are still `R` only. Move around in the game and refresh: more pages turn `RX`. That is the lazy, per-page decryption at work.
+> 2. With the protected client running, open it in System Informer → **Memory** tab, sort by address, and scroll through the `.text` range (`0x410000` upward if the image loaded at its preferred base: `.text` has VirtualAddress `0x10000` and the base is `0x400000`). Pages that have been executed show `RX`; pages that have not are still `R` only. Move around in the game and refresh: more pages turn `RX`. That is the lazy, per-page decryption at work.
 >
-> ![Screenshot 01-C: System Informer Memory tab of the running protected client, showing a mix of R and RX 4 KB regions inside the .text range](images/01-C-sysinformer-text-protections.png)
->
-> *Screenshot placeholder 01-C — see [images/README.md](images/README.md).*
+> *[Screenshot 01-C goes here — file `images/01-C-sysinformer-text-protections.png`: System Informer Memory tab of the running protected client, showing a mix of R and RX 4 KB regions inside the .text range. See [images/README.md](images/README.md).]*
 
 ## Transformation 3: the import directory is replaced
 
@@ -198,9 +196,7 @@ The single function the game calls in the protector's DLL is named `FireInTheHol
 > 2. Now go to **Optional Hdr → Data Directories → IAT** and click the RVA to jump the hex view there. You see 648 little-endian DWORDs. Most are RVAs pointing a little further into `.rdata`; a few are `0x8000xxxx` (imports by ordinal); 22 are zero (group separators).
 > 3. Follow one of those RVAs (PE-bear: right-click → *follow RVA*, or convert to a file offset yourself). You land on a 16-bit word followed by that many bytes of apparent garbage and a `00`. The word is the *length* of the function name; the garbage is the name XORed with the first bytes of the same key you recovered above.
 >
-> ![Screenshot 01-D: PE-bear Imports tab showing only client_x86.dll / FireInTheHole, and the hex view positioned on the IAT with the RVAs and 0x8000xxxx ordinal entries visible](images/01-D-pebear-imports-and-iat-bytes.png)
->
-> *Screenshot placeholder 01-D — see [images/README.md](images/README.md).*
+> *[Screenshot 01-D goes here — file `images/01-D-pebear-imports-and-iat-bytes.png`: PE-bear Imports tab showing only client_x86.dll / FireInTheHole, and the hex view positioned on the IAT with the RVAs and 0x8000xxxx ordinal entries visible. See [images/README.md](images/README.md).]*
 
 ## Transformation 4: the entry point is redirected
 
@@ -218,9 +214,7 @@ The original `AddressOfEntryPoint` is not stored anywhere in the file. It has to
 > 2. Click **Disasm** with the hex view positioned at that RVA: a long run of `90` (NOP) bytes. Nothing meaningful is there on disk; the protector writes a jump into this sled at runtime.
 > 3. For contrast, open `triarch_clean.exe` after the rebuild: the entry point now lies deep inside `.text`, and the disassembly there starts with `call ...` followed by `jmp ...` — the CRT start-up shape explained in the next document.
 >
-> ![Screenshot 01-E: PE-bear Optional Hdr showing AddressOfEntryPoint equal to the injected section's RVA, with the Disasm pane showing the NOP sled](images/01-E-pebear-entrypoint-nopsled.png)
->
-> *Screenshot placeholder 01-E — see [images/README.md](images/README.md).*
+> *[Screenshot 01-E goes here — file `images/01-E-pebear-entrypoint-nopsled.png`: PE-bear Optional Hdr showing AddressOfEntryPoint equal to the injected section's RVA, with the Disasm pane showing the NOP sled. See [images/README.md](images/README.md).]*
 
 ## How each transformation was discovered
 
@@ -245,9 +239,7 @@ None of the above was documented anywhere. Here is the order in which the observ
 > 2. In the **CPU** view, go to an address in `.text` that has already run (the entry of any function the game is currently executing — pause the debugger and look where it stopped). Readable x86. Then `Ctrl+G` to an address a few megabytes away that nothing has touched yet: PE-bear-style noise, and the page is not executable.
 > 3. This is the whole "decrypted lazily, page by page" observation, made without reading a single instruction of the protector.
 >
-> ![Screenshot 01-F: x32dbg attached to the running client: Memory Map with client_x86.dll listed, and the CPU view showing decrypted code at a hot address](images/01-F-x32dbg-memory-map.png)
->
-> *Screenshot placeholder 01-F — see [images/README.md](images/README.md).*
+> *[Screenshot 01-F goes here — file `images/01-F-x32dbg-memory-map.png`: x32dbg attached to the running client: Memory Map with client_x86.dll listed, and the CPU view showing decrypted code at a hot address. See [images/README.md](images/README.md).]*
 
 ## The first assumption, and how it was overturned
 

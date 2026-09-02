@@ -57,9 +57,20 @@ def plan():
     return want
 
 
+def mod_folders():
+    """Top-level mod folders under mods/. Everything here ships AND loads
+    (the host enables a mod with no config section by default), so say
+    what is being bundled rather than staging whatever happens to be there."""
+    mods = os.path.join(ROOT, "mods")
+    return sorted(d for d in os.listdir(mods)
+                  if os.path.isfile(os.path.join(mods, d, "main.py")))
+
+
 def main():
     want = plan()
     check = "--check" in sys.argv
+    folders = mod_folders()
+    print("bundling %d mod folder(s): %s" % (len(folders), ", ".join(folders)))
     stale = []
     for dst, data in sorted(want.items()):
         have = open(dst, "rb").read() if os.path.isfile(dst) else None

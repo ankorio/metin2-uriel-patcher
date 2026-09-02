@@ -11,9 +11,9 @@ per-offset histogram without needing any crib.
 
 With the decrypted exe supplied it scores the recovery against ground truth.
 """
+import argparse
 import collections
 import struct
-import sys
 
 
 def text_section(path):
@@ -32,9 +32,15 @@ def text_section(path):
 
 
 def main():
-    enc_path = sys.argv[1]
-    dec_path = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else None
-    npages = int(sys.argv[sys.argv.index("--pages") + 1]) if "--pages" in sys.argv else 4000
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("exe", help="the encrypted (packed) exe")
+    ap.add_argument("dec", nargs="?", default=None,
+                    help="its decrypted twin - scores the recovery against ground truth")
+    ap.add_argument("--pages", type=int, default=4000,
+                    help="how many .text pages to sample (default 4000)")
+    a = ap.parse_args()
+    enc_path, dec_path, npages = a.exe, a.dec, a.pages
 
     d, ro, size = text_section(enc_path)
     total = size // 4096
@@ -52,6 +58,11 @@ def main():
         guess[j] = top[0][0]                       # assumes plaintext 0x00
         second[j] = top[1][0] if len(top) > 1 else top[0][0]
         margin[j] = top[0][1] / float(len(pages))
+
+    # The weak-mode count needs only the ciphertext, so report it on the
+    # unverified path too - it is the one sanity figure available without a twin.
+    lo = sum(1 for j in range(4096) if margin[j] < 0.05)
+    print("offsets with a weak mode (<5%%): %d  <- the ones needing a real model" % lo)
 
     if not dec_path:
         open("keystream.bin", "wb").write(bytes(guess))
@@ -76,8 +87,6 @@ def main():
     print("assume plaintext 0x00        : %4d/4096  (%.1f%%)" % (exact, 100.0 * exact / 4096))
     print("allow 0x00 or 0xCC           : %4d/4096  (%.1f%%)" % (with_cc, 100.0 * with_cc / 4096))
     print("truth within top-2 x {00,CC} : %4d/4096  (%.1f%%)" % (top2, 100.0 * top2 / 4096))
-    lo = sum(1 for j in range(4096) if margin[j] < 0.05)
-    print("offsets with a weak mode (<5%%): %d  <- the ones needing a real model" % lo)
 
 
 if __name__ == "__main__":

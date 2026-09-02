@@ -19,7 +19,6 @@ finding the 4-byte reference to the table gives us the name for free.
 import json
 import re
 import struct
-import sys
 
 MODDEF_NAME_DELTA = -12   # m_name  relative to m_methods
 MODDEF_DOC_DELTA = -8     # m_doc   relative to m_methods
@@ -102,10 +101,15 @@ def off_to_va(img, off):
 
 
 def main():
-    exe, syms = sys.argv[1], sys.argv[2]
-    out_path = None
-    if "-o" in sys.argv:
-        out_path = sys.argv[sys.argv.index("-o") + 1]
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("exe", help="decrypted exe")
+    ap.add_argument("syms", help="pysyms.json - the PyMethodDef tables to name")
+    ap.add_argument("-o", dest="out", default=None, metavar="OUT.json",
+                    help="write the merged, named tables here")
+    a = ap.parse_args()
+    exe, syms, out_path = a.exe, a.syms, a.out
 
     img = Image(exe)
     tables = json.load(open(syms))

@@ -2157,7 +2157,8 @@ static void* __cdecl TriarchKeyEvent(void* /*self*/, void* args)
 // invariant. Each field is DECLARED in natives.json with an owner, an offset,
 // a type and read/write permission, and only declared fields are reachable.
 #define MAX_FIELDS 32
-enum { FT_U32 = 0, FT_I32 = 1, FT_BOOL8 = 2, FT_VEC2 = 3, FT_VEC_U8 = 4 };
+enum { FT_U32 = 0, FT_I32 = 1, FT_BOOL8 = 2, FT_VEC2 = 3, FT_VEC_U8 = 4,
+       FT_UNKNOWN = 0xFF };   // FieldType() sentinel: the loader rejects it
 enum { OWN_PLAYER = 0, OWN_INSTANCE = 1 };
 
 struct Field {
@@ -2255,13 +2256,17 @@ static void* __cdecl TriarchSetField(void* /*self*/, void* args)
     return exc("triarch_native: '%s' is not writable as a scalar", name);
 }
 
+// The accepted names are mirrored in mkoffsets.py STUB_FIELD_TYPES; keep the
+// two in step. An unknown name used to fall through to FT_U32, which handed a
+// mod the bit pattern of a float as an int without a word in the log.
 static BYTE FieldType(const char* s)
 {
     if (_stricmp(s, "bool8") == 0)      return FT_BOOL8;
     if (_stricmp(s, "i32") == 0)        return FT_I32;
+    if (_stricmp(s, "u32") == 0)        return FT_U32;
     if (_stricmp(s, "vec2") == 0)       return FT_VEC2;
     if (_stricmp(s, "vector_u8") == 0)  return FT_VEC_U8;
-    return FT_U32;
+    return FT_UNKNOWN;
 }
 
 // Drop the current engagement so the next FindAndSetNewTarget picks again.
@@ -3330,6 +3335,8 @@ static void LoadNatives()
         fl.type     = FieldType(f[2]);
         fl.writable = (strchr(f[3], 'w') != NULL);
         if (!fl.off) { Log("NATIVE: field %s has no offset - skipped", fl.name); continue; }
+        if (fl.type == FT_UNKNOWN)
+                     { Log("NATIVE: REJECTED field %s: unknown type '%s'", fl.name, f[2]); continue; }
         g_fld[g_fldN++] = fl;
     }
     Log("NATIVE: %d native(s), %d field(s) loaded from uriel_natives.ini",

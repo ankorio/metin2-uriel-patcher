@@ -867,7 +867,10 @@ ignored` — that line is your spell-checker. Save the file **without a BOM**.
 ```
 
 Do not add an `enabled` checkbox; `modui` injects it. Press F10 in game, click
-`hello` in the rail, change the slider, press **Guardar** (Save). One write
+`hello` in the rail, change the slider, press **Guardar** (Save). The
+reference client is Spanish-localised, so its buttons and its mob and item
+names are Spanish strings; that is also why names in the example configs read
+`"Lobo"` or `"Espada"`, and why the mods prefer vnums to names. One write
 goes to `config.json` (or your profile), the host reloads, and `on_load` logs
 the new interval.
 
@@ -922,6 +925,37 @@ If those lines are missing, the mod host never came up; look at
 `uriel_stub.log` for the `MODS: bootstrap ran ... status:` line and its
 `TRIARCH_MODS` payload.
 
+### Step 8 — break it on purpose
+
+The troubleshooting table in section 8 lists the log line each failure
+produces. With `hello` loaded and the client running, cause four of them
+deliberately and find each line before reading the table's answer. Undo each
+one before the next.
+
+1. **Save `config.json` with a UTF-8 BOM** (most Windows editors offer it as
+   "UTF-8 with BOM"). Watch `mods.log` for the next few seconds. Which line
+   repeats, how often, and what does the line just before the first
+   repetition say? Section 2.9 explains why the host cannot simply ignore it.
+2. **Misspell a key.** Change `"INTERVAL"` to `"INTERVAl"` in the `hello`
+   section and save (without the BOM). One line names the key; the mod keeps
+   the previous interval. Why is that the right behaviour rather than an
+   error?
+3. **`import traceback`** at the top of `main.py`. The mod fails to load —
+   find the line and the traceback beneath it. Section 1.4 says which modules
+   *are* importable; pick one from the resident list and confirm that one
+   loads.
+4. **Rename `on_update` to `on_tick`.** Nothing fails: the mod loads, logs its
+   greeting, and never greets again, because the host looks up three names
+   and does not warn about a fourth (section 3). This is the quietest failure
+   in the framework, and the one to remember when a mod "loads but does
+   nothing".
+
+Then break the *stub* side, once, with the client stopped: rename
+`uriel_natives.ini` and start the client. `hello` needs no natives and keeps
+working; `apidiag` (enable it in a profile) reports the module as `None`, and
+`uriel_stub.log` says `NATIVE: no uriel_natives.ini - gateway disabled (this
+is fine)` — the silent failure document 03 is built around. Put the file back.
+
 ---
 
 ## 8. Troubleshooting
@@ -945,4 +979,4 @@ If those lines are missing, the mod host never came up; look at
 | `api.ui is None` / `uikit: <row> failed` | boot lines / the row spec | `uikit.py` missing or failed to load (traceback in the log); or a widget class this build lacks — the row degrades, not fatal. |
 | The manager window never appears | `modui:` lines | `GameWindow has no OnKeyDown - key handling is native` means F10 cannot be bound; set `OPEN_ON_START: true`. |
 | Editing `modhost.py` changes nothing | section 2.6 | It does not hot-reload. Restart the client. |
-| `triarch_native` is `None` inside `on_load`, fine a moment later | The host's first tick can run before the stub registers the module (82 ms apart on a measured boot). | Touch natives from `on_tick`, not `on_load`; or reload the mod once. |
+| `triarch_native` is `None` inside `on_load`, fine a moment later | The host's first tick can run before the stub registers the module (82 ms apart on a measured boot). | Touch natives from `on_update`, not `on_load`; or reload the mod once. |

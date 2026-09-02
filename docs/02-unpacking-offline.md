@@ -124,7 +124,8 @@ weakness was never the key; it was reusing it 17,695 times.
 **5. The hexdump you can check by hand.** Page 0 of `.text` before and
 after. The decrypted page opens with `55 8B EC` — `push ebp; mov ebp, esp`,
 the prologue MSVC emits for almost every function — and is peppered with
-`00` bytes. If you disassemble the bottom dump you get a real function; if
+`00` bytes. (This and every other byte pattern these documents quote are
+collected in one table in the [glossary](08-glossary.md#x86-byte-patterns-used-in-this-repo).) If you disassemble the bottom dump you get a real function; if
 you disassemble the top one you get nonsense that faults on the second
 instruction. That is the same test the OEP finder and the offset resolvers
 rely on later: decrypted code *looks like code*.
@@ -145,9 +146,7 @@ to the attacker.
 > 1. `python tools/ksattack.py triarch.exe` — prints the number of pages sampled and, if you also pass a known-good `triarch_clean.exe` of the *same build*, the score against ground truth. Without one, it still prints how many offsets had a weak majority (expect 0).
 > 2. Save the key and look at it: `python -c "import sys; sys.path.insert(0,'tools'); import unuriel; d=open('triarch.exe','rb').read(); k,w=unuriel.static_keystream(d, unuriel.PE(d)); open('key.bin','wb').write(k); print(k[:16].hex(), 'weak', w)"`. Open `key.bin` in HxD: 4096 bytes that look random — because they are. The weakness was never the key; it was the reuse.
 >
-> ![Screenshot 02-A: terminal output of tools/ksattack.py on the protected exe, and HxD showing the first bytes of key.bin](images/02-A-ksattack-output-and-key.png)
->
-> *Screenshot placeholder 02-A — see [images/README.md](images/README.md).*
+> *[Screenshot 02-A goes here — file `images/02-A-ksattack-output-and-key.png`: terminal output of tools/ksattack.py on the protected exe, and HxD showing the first bytes of key.bin. See [images/README.md](images/README.md).]*
 
 ## 2. Decoding the import names
 
@@ -190,9 +189,7 @@ After decoding, `derive` sanity-checks every name against an identifier alphabet
 >    A Windows API name appears — `RegFlushKey`, `BitBlt`, `GetStartupInfoW`, whichever slot you picked.
 > 3. Run `python tools/unuriel.py derive triarch.exe -o profile.json` and open `profile.json`: every slot, decoded, with the DLL it was attributed to.
 >
-> ![Screenshot 02-B: a Python session decoding a single hint/name entry into a readable API name, next to profile.json opened in an editor](images/02-B-decode-one-name-and-profile.png)
->
-> *Screenshot placeholder 02-B — see [images/README.md](images/README.md).*
+> *[Screenshot 02-B goes here — file `images/02-B-decode-one-name-and-profile.png`: a Python session decoding a single hint/name entry into a readable API name, next to profile.json opened in an editor. See [images/README.md](images/README.md).]*
 
 ## 3. Groups, and which DLL each one belongs to
 
@@ -245,9 +242,7 @@ A rebuilt executable that imports `RtlAllocateHeap` from ntdll runs fine, but it
 > 1. Look at the group table `derive` prints: one line per DLL with its import count and first name. Compare the order with `imports_db.json`: uppercase DLL names first, lowercase after — the linker's sort order, which is what breaks the OLEAUT32/WS2_32 tie.
 > 2. Open `profile.json` and search for `"value": 0` — exactly 22 hits, the separators.
 >
-> ![Screenshot 02-C: the derive group table in the terminal (22 lines, ADVAPI32 … urlmon) with the 'group 5: ordinal-only … -> OLEAUT32.dll' tie-break line visible](images/02-C-derive-groups.png)
->
-> *Screenshot placeholder 02-C — see [images/README.md](images/README.md).*
+> *[Screenshot 02-C goes here — file `images/02-C-derive-groups.png`: the derive group table in the terminal (22 lines, ADVAPI32 … urlmon) with the 'group 5: ordinal-only … -> OLEAUT32.dll' tie-break line visible. See [images/README.md](images/README.md).]*
 
 ## 4. Finding the original entry point by shape
 
@@ -267,7 +262,7 @@ The finder scans the decrypted text for every 10-byte window that satisfies all 
 | **The window's own address is never a call or jump target** | The entry point is reached from the loader, not from code — nothing in the program calls it |
 | The `call` target is called **exactly once** | `__security_init_cookie` is called from the entry and nowhere else |
 
-Candidates are then scored. Ten points if the callee contains the single `mov [__security_cookie], ecx` store (`89 0D imm32`, where `imm32` is the cookie address read from the load config directory at offset 0x3C), one point if the `jmp` target is never *called* (only jumped to). On every build measured the finder produced 3 candidates and the highest-scoring one was the correct entry — confirmed byte-for-byte on the builds that had a known-good reference (section 7).
+Candidates are then scored. Ten points if the callee contains the single `mov [__security_cookie], ecx` store (`89 0D imm32`, where `imm32` is the address of `__security_cookie`, read from the `SecurityCookie` field of `IMAGE_LOAD_CONFIG_DIRECTORY32` — at `+0x3C` inside that structure, which the load config data directory points at; the same number as `e_lfanew` in document 01, by coincidence), one point if the `jmp` target is never *called* (only jumped to). On every build measured the finder produced 3 candidates and the highest-scoring one was the correct entry — confirmed byte-for-byte on the builds that had a known-good reference (section 7).
 
 To build the "is this address ever a target" and "how many times is this called" sets, the finder makes one pass over all of `.text` decoding every `E8`/`E9` relative displacement. That is a crude disassembly — it will also pick up `E8` bytes that are data — but it errs on the side of *more* targets, which only makes the "never a target" test stricter, never looser.
 
@@ -276,9 +271,7 @@ To build the "is this address ever a target" and "how many times is this called"
 > 1. After `rebuild`, open `triarch_clean.exe` in PE-bear → **Optional Hdr** → *Entry Point*, then **Disasm** at that RVA: `E8 xx xx xx xx` (call) immediately followed by `E9 xx xx xx xx` (jmp), and `CC` bytes just before it.
 > 2. In Ghidra, import `triarch_clean.exe`, let auto-analysis run, and go to the entry point: Ghidra names the two targets `__security_init_cookie`-like and `__scrt_common_main_seh`-like from their shape as well.
 >
-> ![Screenshot 02-D: PE-bear Disasm at the restored entry point of triarch_clean.exe showing call/jmp with CC padding before it, or the same location in Ghidra](images/02-D-oep-call-jmp.png)
->
-> *Screenshot placeholder 02-D — see [images/README.md](images/README.md).*
+> *[Screenshot 02-D goes here — file `images/02-D-oep-call-jmp.png`: PE-bear Disasm at the restored entry point of triarch_clean.exe showing call/jmp with CC padding before it, or the same location in Ghidra. See [images/README.md](images/README.md).]*
 
 ## 5. Rebuild: writing a clean executable
 
@@ -319,9 +312,7 @@ flowchart LR
 > 2. DiE entropy on the clean exe: `.text` now reads about 6.5 — real code.
 > 3. Ghidra on the clean exe: strings, cross-references and readable functions everywhere. This is the file every later document works on.
 >
-> ![Screenshot 02-E: two PE-bear windows: Imports tab of triarch.exe (1 DLL) versus triarch_clean.exe (22 DLLs), with the .unuriel section visible in the clean file's section table](images/02-E-before-after-imports.png)
->
-> *Screenshot placeholder 02-E — see [images/README.md](images/README.md).*
+> *[Screenshot 02-E goes here — file `images/02-E-before-after-imports.png`: two PE-bear windows: Imports tab of triarch.exe (1 DLL) versus triarch_clean.exe (22 DLLs), with the .unuriel section visible in the clean file's section table. See [images/README.md](images/README.md).]*
 
 ## 6. The live method, kept as a fallback
 
@@ -376,5 +367,5 @@ python tools/ksattack.py <encrypted.exe> [decrypted.exe] [--pages N]
 2. **Measure the byte distribution.** Histogram the bytes of a decrypted `.text`. What fraction is `0x00`? What is the second most common byte? How few pages does `recover_key` actually need before it gets all 4096 bytes right? (Try `--pages` in `ksattack.py`.)
 3. **Break the decoder on purpose.** Change `decode_iat` to stop at the first zero byte instead of trusting the length word, run `derive`, and count how many names come out truncated. Then find one of those names and show, byte by byte, why the zero appeared.
 4. **Find the ordinal tie yourself.** Print the 22 groups with their DLL names and note where the `#6`-only group sits. Which DLL name sorts between its neighbours? Confirm from `tools/imports_db.json` which function that ordinal is.
-5. **Add a fourth OEP test.** `find_oep` scores candidates by two properties. Think of a third property of `__scrt_common_main_seh` that could be checked (hint: what does it do just before calling `main`?), implement it, and see whether the three candidates now separate even further.
+5. **Add a third scoring property.** `find_oep` filters candidates with five tests and then scores the survivors on two properties. Think of a third property of `__scrt_common_main_seh` that could be checked (hint: what does it do just before calling `main`?), implement it, and see whether the three candidates now separate even further.
 6. **Diff two builds.** Run `derive` on two different builds and compare the profiles. Which fields change? Which are identical? Why is the IAT layout the same when the key is not?
