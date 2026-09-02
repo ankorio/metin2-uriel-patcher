@@ -1,0 +1,467 @@
+{
+  "_README": [
+    "The single source of truth for the native side of the mod API.",
+    "",
+    "Consumed by: tools/mkoffsets.py (resolves + validates addresses),",
+    "uriel_stub.cpp (dispatch table), api.py (namespaces), apigen.py (docs)",
+    "and the telemetry audit. Change it here and everything follows.",
+    "",
+    "ADDING A NATIVE:",
+    "  1. Find it by symbol name in the Android client's libtriarch.so (ARM64) for the signature.",
+    "  2. Find its x86 twin structurally - never assume an offset transfers.",
+    "  3. Read its terminating `ret` immediate. Every ret in one function shares",
+    "     the same immediate; if they disagree you are looking at TWO functions",
+    "     packed without int3 padding (this is what OpenCharacterMenu does).",
+    "  4. Add an entry. The resolver asserts sum(stack widths) == ret imm and",
+    "     REFUSES to emit the entry otherwise. No rebuild of the stub is needed.",
+    "",
+    "TYPES and their 32-bit stack widths:",
+    "  i32 u32 vid vnum f32 ptr cstr bool32 = 4    i64 u64 f64 = 8",
+    "  `this` travels in ECX and is NOT part of the stack total.",
+    "",
+    "TRUST: this is a TRUSTED-MOD API, not a sandbox. `capability`, `safety`,",
+    "`side_effects` and `requires` are recorded but NOT yet enforced - they exist",
+    "so enforcement can be switched on later without re-migrating every entry."
+  ],
+  "singletons": {
+    "player": {
+      "holder": "kPlayerInst",
+      "deref": 2,
+      "doc": "CPythonPlayer - **(void***)holder"
+    },
+    "charmgr": {
+      "holder": "kCharMgrInst",
+      "deref": 2,
+      "doc": "CPythonCharacterManager"
+    },
+    "netstream": {
+      "holder": "kNetStreamInst",
+      "deref": 2,
+      "doc": "CPythonNetworkStream"
+    },
+    "minimap": {
+      "holder": "kMiniMapInst",
+      "deref": 2,
+      "doc": "CPythonMiniMap"
+    }
+  },
+  "natives": [
+    {
+      "name": "FindAndSetNewTarget",
+      "area": "player",
+      "abi": "x86-msvc-thiscall",
+      "this": "player",
+      "anchor": "autohunt",
+      "args": [
+        {
+          "name": "main",
+          "type": "ptr",
+          "nullable": false,
+          "doc": "the player's own CInstanceBase, from api.player.main_instance"
+        },
+        {
+          "name": "b_stone",
+          "type": "bool32",
+          "doc": "metin stones instead of mobs"
+        },
+        {
+          "name": "exclude",
+          "type": "vid",
+          "doc": "0, or a VID to skip"
+        }
+      ],
+      "return": {
+        "type": "void"
+      },
+      "stack_bytes": 12,
+      "confidence": "verified-live",
+      "requires": [
+        "player-ready",
+        "in-game"
+      ],
+      "thread": "game",
+      "side_effects": [
+        "combat",
+        "movement"
+      ],
+      "emits": [],
+      "safety": "unsafe",
+      "capability": "player.control",
+      "doc": "Whole acquisition in one call: FindVictim (including the 100-sample line-of-sight ray march that is unreachable from Python), targeting, __OnPressActor and the walk-in. Measured 50 acquisitions, 0 faults."
+    },
+    {
+      "name": "OnPressActor",
+      "area": "player",
+      "abi": "x86-msvc-thiscall",
+      "this": "player",
+      "anchor": "autohunt",
+      "args": [
+        {
+          "name": "main",
+          "type": "ptr",
+          "nullable": false
+        },
+        {
+          "name": "vid",
+          "type": "vid"
+        },
+        {
+          "name": "wait",
+          "type": "bool32"
+        }
+      ],
+      "return": {
+        "type": "void"
+      },
+      "stack_bytes": 12,
+      "confidence": "verified-live",
+      "requires": [
+        "player-ready",
+        "in-game"
+      ],
+      "thread": "game",
+      "side_effects": [
+        "combat"
+      ],
+      "emits": [],
+      "safety": "unsafe",
+      "capability": "player.control",
+      "doc": "Set the auto-attack target. Sets the VID and the cached actor pointer together, which is what keeps them consistent - hand-writing those fields instead is what would trip __key__b0t__ on builds that have it."
+    },
+    {
+      "name": "UseAutoSkills",
+      "area": "player",
+      "abi": "x86-msvc-thiscall",
+      "this": "player",
+      "anchor": "autohunt",
+      "args": [
+        {
+          "name": "main",
+          "type": "ptr",
+          "nullable": false
+        },
+        {
+          "name": "target",
+          "type": "ptr",
+          "nullable": true,
+          "doc": "may be NULL - buffs do not need a target"
+        },
+        {
+          "name": "now",
+          "type": "i64",
+          "doc": "time(NULL), SECONDS, 64-bit"
+        }
+      ],
+      "return": {
+        "type": "void"
+      },
+      "stack_bytes": 16,
+      "confidence": "verified-live",
+      "requires": [
+        "player-ready",
+        "in-game",
+        "not-mounted"
+      ],
+      "thread": "game",
+      "side_effects": [
+        "combat",
+        "network"
+      ],
+      "emits": [
+        "skill",
+        "horse_ride"
+      ],
+      "safety": "unsafe",
+      "capability": "player.control",
+      "doc": "Buffs, attack skills, cooldowns, mana and range, from the skill list picked in the autohunt window. NOTE `now` is 64-bit: it occupies two stack slots, which is why stack_bytes is 16 for three arguments. EMITS: SendUseSkillPacket normally, and /user_horse_ride if the character is MOUNTED - hence the not-mounted precondition."
+    },
+    {
+      "name": "OpenCharacterMenu",
+      "area": "player",
+      "abi": "x86-msvc-thiscall",
+      "this": "player",
+      "anchor": "autohunt",
+      "args": [
+        {
+          "name": "vid",
+          "type": "vid"
+        }
+      ],
+      "return": {
+        "type": "void"
+      },
+      "stack_bytes": 4,
+      "confidence": "verified-static",
+      "requires": [
+        "player-ready",
+        "in-game"
+      ],
+      "thread": "game",
+      "side_effects": [
+        "ui"
+      ],
+      "emits": [],
+      "safety": "unsafe",
+      "capability": "player.control",
+      "doc": "Called by AutoHuntLoop right after __OnPressActor. Its region holds TWO functions with no int3 between them - the trailing `ret 0xc` belongs to the next one, this is `ret 4`."
+    },
+    {
+      "name": "UpdateAutoAttack",
+      "area": "player",
+      "abi": "x86-msvc-thiscall",
+      "this": "player",
+      "anchor": "autohunt",
+      "args": [],
+      "return": {
+        "type": "void"
+      },
+      "stack_bytes": 0,
+      "confidence": "verified-static",
+      "requires": [
+        "player-ready",
+        "in-game"
+      ],
+      "thread": "game",
+      "side_effects": [
+        "combat"
+      ],
+      "emits": [],
+      "safety": "unsafe",
+      "capability": "player.control",
+      "doc": "One frame of the attack sustain. The client already calls this every frame from CPythonPlayer::Update; exposed for diagnostics, not for driving."
+    },
+    {
+      "name": "ReserveProcessClickActor",
+      "area": "player",
+      "abi": "x86-msvc-thiscall",
+      "this": "player",
+      "anchor": "autohunt",
+      "args": [],
+      "return": {
+        "type": "void"
+      },
+      "stack_bytes": 0,
+      "confidence": "verified-static",
+      "requires": [
+        "player-ready",
+        "in-game"
+      ],
+      "thread": "game",
+      "side_effects": [
+        "combat"
+      ],
+      "emits": [],
+      "safety": "unsafe",
+      "capability": "player.control",
+      "doc": "Flushes a reserved click-actor action."
+    },
+    {
+      "name": "CreateAutoBotSettings",
+      "area": "player",
+      "abi": "x86-msvc-thiscall",
+      "this": "player",
+      "anchor": "autohunt",
+      "args": [],
+      "return": {
+        "type": "void"
+      },
+      "stack_bytes": 0,
+      "confidence": "verified-live",
+      "requires": [
+        "player-ready"
+      ],
+      "thread": "game",
+      "side_effects": [
+        "config"
+      ],
+      "emits": [],
+      "safety": "safe",
+      "capability": "player.read",
+      "doc": "Rebuilds the autohunt settings block from CPythonConfig (hunt_use_skill, hunt_use_mount, hunt_type, hunt_items, hunt_support). Audited over its true bounds (2813 bytes): zero SendChatPacket calls, no network/minimap/player singleton reference. Also reachable as playerm2g2.CreateAutoBotSettings."
+    },
+    {
+      "name": "SendChatPacket",
+      "area": null,
+      "abi": "x86-msvc-thiscall",
+      "this": "netstream",
+      "anchor": "chat",
+      "args": [
+        {
+          "name": "text",
+          "type": "cstr",
+          "nullable": false
+        },
+        {
+          "name": "kind",
+          "type": "u32",
+          "doc": "chat type, 0 = normal"
+        }
+      ],
+      "return": {
+        "type": "void"
+      },
+      "stack_bytes": 8,
+      "confidence": "verified-static",
+      "requires": [
+        "connected"
+      ],
+      "thread": "game",
+      "side_effects": [
+        "network"
+      ],
+      "emits": [
+        "chat"
+      ],
+      "safety": "dangerous",
+      "capability": "network.send",
+      "doc": "DELIBERATELY UNPLACED (area null) so it is not reachable as api.<area>.SendChatPacket. Anything sending /auto_hunt would put this client into the developers' live autohunt analytics - the one thing the isolation rule forbids. Reach it explicitly if you must."
+    }
+  ],
+  "rejected": [
+    {
+      "name": "FindVictim",
+      "addr_hint": "0x005BEE60",
+      "reason": "unsupported-abi",
+      "detail": "Takes its float `range` argument in XMM2, not on the stack: its first instruction is `movss [esp+0x20], xmm2`, and the caller does `movaps xmm2, xmm0` before the call. Stack cleanup is ret 0x10 = 4 dwords, so the float is genuinely enregistered and the declared signature would be wrong in a way that corrupts the stack rather than raising. The trampoline supports stack arguments only, so this FAILS CLOSED.",
+      "use_instead": "FindAndSetNewTarget - it calls FindVictim, computes the search radius from the minimap slider itself ((value + 40) * 35), applies the line-of-sight filter and engages.",
+      "to_support_later": "Add an explicit ABI variant (e.g. x86-msvc-thiscall-xmm2f) that the trampoline honours by loading declared float arguments into XMM registers. Opt-in per entry, never inferred."
+    }
+  ],
+  "fields": [
+    {
+      "name": "auto_attack_vid",
+      "owner": "player",
+      "offset": "kAutoAtkVidOff",
+      "type": "u32",
+      "access": "r",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "The current auto-attack target VID, 0 when unengaged. READ ONLY on purpose: it must stay consistent with the cached actor pointer 4 bytes above it. Use OnPressActor to set, DropEngagement to clear."
+    },
+    {
+      "name": "auto_attack_target",
+      "owner": "player",
+      "offset": "kAutoAtkVidOff",
+      "offset_delta": 4,
+      "type": "u32",
+      "access": "r",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "The CACHED ACTOR POINTER that sits 4 bytes above the auto-attack VID. UseAutoSkills takes it as pTarget. Read-only: it must stay consistent with the VID beside it, which is what __OnPressActor guarantees and a hand-write would not."
+    },
+    {
+      "name": "hunt_use_skill",
+      "owner": "player",
+      "offset": "kHuntUseSkillOff",
+      "type": "bool8",
+      "access": "rw",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "The autohunt window's 'use skills' checkbox. UseAutoSkills tests this first and returns immediately when clear."
+    },
+    {
+      "name": "hunt_use_mount",
+      "owner": "player",
+      "offset": "kHuntUseMountOff",
+      "type": "bool8",
+      "access": "rw",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "The autohunt window's 'use mount' checkbox, the byte just above hunt_use_skill. UseAutoSkills dismounts to cast an attack skill and only REMOUNTS afterwards when this is set; clear, and it stays dismounted. Set it to drive the client's own dismount->cast->remount cycle."
+    },
+    {
+      "name": "hunt_stones",
+      "owner": "player",
+      "offset": "kHuntStoneOff",
+      "type": "bool8",
+      "access": "rw",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "The 'stones only' choice. AutoHuntLoop reads this byte at both of its FindAndSetNewTarget call sites."
+    },
+    {
+      "name": "player_state",
+      "owner": "player",
+      "offset": "kPlayerStateOff",
+      "type": "u32",
+      "access": "r",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "Player state enum; 0x89 is the charge-skill state __OnPressActor tests for."
+    },
+    {
+      "name": "hunt_anchor",
+      "owner": "player",
+      "offset": "kAnchorOff",
+      "type": "vec2f",
+      "access": "rw",
+      "requires": [
+        "player-ready"
+      ],
+      "adapter": "vec2",
+      "doc": "The point FindVictim searches around - NOT the character position. Two floats."
+    },
+    {
+      "name": "hunt_skills",
+      "owner": "player",
+      "offset": "kHuntSkillVecOff",
+      "type": "vector<u8>",
+      "access": "r",
+      "requires": [
+        "player-ready"
+      ],
+      "adapter": "vector_u8",
+      "doc": "The configured skill slots. A std::vector<BYTE> begin/end POINTER PAIR, not a value - exposed through an adapter that returns a list. Raw access to this offset is meaningless and is not offered."
+    },
+    {
+      "name": "auto_move_active",
+      "owner": "player",
+      "offset": "kAutoMoveActiveOff",
+      "type": "bool8",
+      "access": "r",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "True while a walk-to-waypoint is in progress. Set by CPythonPlayer::AutoMoveToPosition once the route is accepted; cleared on arrival, on cancel, and when no path can be built. Covers BOTH a mod calling api.move_to and the player clicking the atlas, because every route goes through that one function."
+    },
+    {
+      "name": "auto_move_enabled",
+      "owner": "player",
+      "offset": "kAutoMoveEnabledOff",
+      "type": "bool8",
+      "access": "r",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "Set alongside auto_move_active when a route is accepted. Reading BOTH tells a stuck 'active' apart from a genuinely live route."
+    },
+    {
+      "name": "auto_move_dest",
+      "owner": "player",
+      "offset": "kAutoMoveDestOff",
+      "type": "vec2f",
+      "access": "r",
+      "requires": [
+        "player-ready"
+      ],
+      "doc": "Destination (x, y) the current route is heading to, written by CPythonPlayer::AutoMoveToPosition just before the active flag. Diagnostic: a stale destination with active=1 means the flag was never cleared."
+    }
+  ],
+  "instance_fields": [
+    {
+      "name": "mounted",
+      "owner": "instance",
+      "offset": "kMountedOff",
+      "type": "bool8",
+      "access": "r",
+      "requires": [],
+      "doc": "IsMountingHorse(), which this build inlines as a byte on CInstanceBase. Every /user_horse_ride UseAutoSkills can emit is downstream of it, which is why 'not mounted' is a provable guarantee of silence rather than a heuristic."
+    }
+  ]
+}

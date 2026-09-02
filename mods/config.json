@@ -1,0 +1,99 @@
+{
+  "autohunt2": {
+    "enabled": true,
+    "AUTOSTART": false,
+    "WALK_STATE": 138,
+    "BOSS_RACES": [],
+    "METIN_RACES": [],
+    "TRASH_RACES": [],
+    "TRASH_RANGE": 3000.0,
+    "ONLY_BOSSES": false,
+    "ONLY_METINS": false
+  },
+  "autoloot": {
+    "enabled": true
+  },
+  "autologin": {
+    "enabled": false
+  },
+  "entscan": {
+    "enabled": false
+  },
+  "follow": {
+    "enabled": false
+  },
+  "lootdiag": {
+    "enabled": false
+  },
+  "mobdiag": {
+    "enabled": false
+  },
+  "modui": {
+    "enabled": true,
+    "OPEN_ON_START": false
+  },
+  "posinfo": {
+    "enabled": false
+  },
+  "unstick": {
+    "enabled": false
+  },
+  "nocollide": {
+    "enabled": false,
+    "NO_TERRAIN": false,
+    "VERBOSE": true,
+    "SOLID_RACES": [
+      8000,
+      8999
+    ],
+    "ONLY_ON_WAYPOINT": true,
+    "DEBUG": false,
+    "WALK_STATE": 138
+  },
+  "keeproute": {
+    "enabled": false,
+    "WALK_STATE": 138,
+    "RESUME_EVERY": 1.5,
+    "RESUME_LIMIT": 12,
+    "VERBOSE": true
+  },
+  "chanswap": {
+    "enabled": false
+  },
+  "fishing": {
+    "enabled": false,
+    "USE_BOLA": true
+  },
+  "goto": {
+    "enabled": false
+  },
+  "shoppos": {
+    "enabled": false,
+    "URL": "",
+    "UPLOAD_TOKEN": ""
+  },
+  "routes": {
+    "enabled": false,
+    "WALK_STATE": 138,
+    "AUTORUN": "",
+    "ARRIVE_DIST": 250.0,
+    "STUCK_S": 4.0,
+    "SIDESTEP": 1100.0,
+    "HUNT_IDLE_S": 6.0,
+    "HUNT_MAX_S": 0.0,
+    "VERBOSE": true,
+    "ROUTES": {}
+  },
+  "apidiag": {
+    "enabled": false
+  },
+  "nativeprobe": {
+    "enabled": false
+  },
+  "probe_ui": {
+    "enabled": false
+  },
+  "uispy": {
+    "enabled": false
+  }
+}

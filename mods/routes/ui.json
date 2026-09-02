@@ -1,0 +1,19 @@
+{
+  "title": "Routes",
+  "hint": "Scripted travel: walk paths, closed hunting loops, channel hops and map exits, handing control to autohunt2 (or a future worker) at each stop. Routes live in config ROUTES or are recorded in game: /route mark at each corner, then /route save <name> loop. Run with /route run <name>, stop with /route stop.",
+  "rows": [
+    {"type": "value", "key": "AUTORUN", "label": "Run on login (profile)"},
+    {"type": "separator"},
+    {"type": "label", "text": "Walking"},
+    {"type": "slider", "key": "ARRIVE_DIST", "label": "Arrive within", "min": 100, "max": 600, "step": 50},
+    {"type": "slider", "key": "STUCK_S", "label": "Stuck after (s)", "min": 2, "max": 10, "step": 1},
+    {"type": "slider", "key": "SIDESTEP", "label": "Sidestep length", "min": 400, "max": 2000, "step": 100},
+    {"type": "separator"},
+    {"type": "label", "text": "Hunting stops"},
+    {"type": "slider", "key": "HUNT_IDLE_S", "label": "Clear for (s) before moving on", "min": 2, "max": 30, "step": 1},
+    {"type": "slider", "key": "HUNT_MAX_S", "label": "Max per stop (s, 0 = none)", "min": 0, "max": 1800, "step": 30},
+    {"type": "separator"},
+    {"type": "checkbox", "key": "VERBOSE", "label": "Verbose log"},
+    {"type": "button", "label": "Revert", "action": "reset", "x": 10}
+  ]
+}

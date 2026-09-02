@@ -1,0 +1,20 @@
+{
+  "title": "Auto loot",
+  "hint": "Picks up drops that belong to you within ~1000 units. Ownership is enforced by the client, so this can never take another player's loot.",
+  "rows": [
+    {"type": "checkbox", "key": "TAKE_ITEMS", "label": "Pick up items"},
+    {"type": "checkbox", "key": "TAKE_MONEY", "label": "Pick up yang"},
+    {"type": "separator"},
+    {"type": "checkbox", "key": "LEGACY_MODE", "label": "Enable legacy mode"},
+    {"type": "slider",   "key": "LEGACY_INTERVAL", "label": "Legacy sweep every",
+                         "min": 0.5, "max": 5, "step": 0.5, "suffix": "s"},
+    {"type": "separator"},
+    {"type": "checkbox", "key": "TRIGGER_ON_KILL", "label": "Sweep after each kill"},
+    {"type": "slider",   "key": "IDLE_INTERVAL", "label": "Idle sweep every",
+                         "min": 2, "max": 30, "step": 1, "suffix": "s"},
+    {"type": "separator"},
+    {"type": "checkbox", "key": "SET_CLIENT_FLAG", "label": "Sync AUTO_PICK option"},
+    {"type": "checkbox", "key": "VERBOSE", "label": "Log every sweep"},
+    {"type": "button",   "label": "Revert", "action": "reset", "x": 10}
+  ]
+}

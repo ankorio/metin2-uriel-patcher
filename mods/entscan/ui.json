@@ -1,0 +1,20 @@
+{
+  "title": "Metin marks",
+  "hint": "Marks every loaded metin on the atlas; unmarks it when destroyed. Named mobs get a red target dot on the minimap + atlas.",
+  "rows": [
+    {"type": "slider",   "key": "SWEEP_EVERY", "label": "Look for new",
+                         "min": 2, "max": 60, "step": 1, "suffix": "s"},
+    {"type": "slider",   "key": "CHUNK", "label": "VIDs per tick",
+                         "min": 20000, "max": 200000, "step": 20000},
+    {"type": "value",    "key": "MAX_MARKS", "label": "Max metin marks"},
+    {"type": "separator"},
+    {"type": "label",    "text": "Red-dot these mobs (comma list, matches part of the name):"},
+    {"type": "edit",     "key": "TARGET_NAMES", "label": "Mob names",
+                         "width": 200, "max_length": 160},
+    {"type": "value",    "key": "MAX_TARGET_MARKS", "label": "Max mob marks"},
+    {"type": "separator"},
+    {"type": "value",    "key": "RADIUS_LO", "label": "Window below"},
+    {"type": "value",    "key": "RADIUS_HI", "label": "Window above"},
+    {"type": "button",   "label": "Revert", "action": "reset", "x": 10}
+  ]
+}

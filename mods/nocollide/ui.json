@@ -1,0 +1,56 @@
+{
+  "title": "No collision",
+  "hint": "Walk through monsters while travelling to a waypoint. Metin stones always keep their collision. Terrain is a separate check and is not touched - nothing is sent to the server.",
+  "rows": [
+    {
+      "type": "checkbox",
+      "key": "ONLY_ON_WAYPOINT",
+      "label": "Only while walking to a waypoint"
+    },
+    {
+      "type": "value",
+      "key": "SOLID_RACES",
+      "label": "Races kept solid"
+    },
+    {
+      "type": "checkbox",
+      "key": "VERBOSE",
+      "label": "Log every state change"
+    },
+    {
+      "type": "checkbox",
+      "key": "DEBUG",
+      "label": "Log engine state (diagnostic)"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "type": "label",
+      "text": "DISABLING TERRAIN COLLISION MAY",
+      "color": 4294901760
+    },
+    {
+      "type": "label",
+      "text": "LEAD YOU TO ILEGAL ZONES!!!!",
+      "color": 4294901760
+    },
+    {
+      "type": "label",
+      "text": "Walking through a mob is invisible to the"
+    },
+    {
+      "type": "label",
+      "text": "server. Walking through a WALL is not -"
+    },
+    {
+      "type": "label",
+      "text": "your x/y is reported ~2.5 times a second."
+    },
+    {
+      "type": "checkbox",
+      "key": "NO_TERRAIN",
+      "label": "Disable terrain collision"
+    }
+  ]
+}

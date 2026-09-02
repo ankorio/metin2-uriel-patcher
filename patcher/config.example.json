@@ -1,0 +1,202 @@
+{
+  "autohunt2": {
+    "enabled": true,
+    "AUTOSTART": false,
+    "AUTOSTART_AFTER": 6.0,
+    "WALK_STATE": 138,
+    "HUNT_STONES": true,
+    "HUNT_RANGE": 300.0,
+    "USE_SKILLS": true,
+    "SKILLS_WHILE_MOUNTED": false,
+    "BOSS_RACES": [
+      1093
+    ],
+    "METIN_RACES": [
+      8005
+    ],
+    "TRASH_RACES": [],
+    "TRASH_RANGE": 3000.0,
+    "ONLY_BOSSES": false,
+    "ONLY_METINS": false,
+    "METIN_ANY_STONE": false,
+    "METIN_SWEEP": true,
+    "METIN_SWEEP_EVERY_S": 15.0,
+    "METIN_SWEEP_DUR_S": 2.0,
+    "METIN_SWEEP_RANGE": 250.0,
+    "BOSS_RANGE": 8000.0,
+    "METIN_RANGE": 0.0,
+    "BOSS_REACH": 700.0,
+    "BOSS_GIVEUP_S": 0.0,
+    "AVOID_CONTESTED": true,
+    "AVOID_WHEN_STONES": false,
+    "RELOCATE_FIGHT_ALONG": false,
+    "CONTEST_DEBUG": true,
+    "LOOP_CHANNELS": false,
+    "LOOP_IDLE_S": 10.0,
+    "SHOW_RANGE": true,
+    "STALL_SIDESTEP": false,
+    "REVIVE": true,
+    "REVIVE_CMD": "/restart_here",
+    "WATCH_CHAT": true,
+    "UI_DETOUR": false,
+    "VERBOSE": true
+  },
+  "autologin": {
+    "enabled": false,
+    "TAP_AFTER": 5.0,
+    "SETTLE": 3.0,
+    "MAX_STEPS": 40,
+    "VERBOSE": true
+  },
+  "autoloot": {
+    "enabled": true,
+    "TRIGGER_ON_KILL": true,
+    "KILL_DELAY": 0.6,
+    "KILL_SWEEPS": 2,
+    "KILL_SPACING": 1.2,
+    "IDLE_INTERVAL": 8.0,
+    "IDLE_JITTER": 3.0,
+    "LEGACY_MODE": false,
+    "LEGACY_INTERVAL": 0.5,
+    "SPAM_PICKUP": false,
+    "SPAM_INTERVAL": 0.5,
+    "TAKE_ITEMS": true,
+    "TAKE_MONEY": true,
+    "WANTED": [
+      "Espada",
+      27610
+    ],
+    "NAME_MIN_LEN": 4,
+    "IGNORED_LOGGED": true,
+    "SET_CLIENT_FLAG": true,
+    "FETCH_WANTED": true,
+    "FETCH_RANGE": 3000.0,
+    "FETCH_TIMEOUT_S": 10.0,
+    "FETCH_WHILE_FIGHTING": true,
+    "VERBOSE": false
+  },
+  "chanswap": {
+    "enabled": false,
+    "SETTLE": 2.0,
+    "LAND_TIMEOUT": 40.0
+  },
+  "entscan": {
+    "enabled": false,
+    "SWEEP_EVERY": 5.0,
+    "MAX_MARKS": 60,
+    "TARGET_NAMES": "Arquero Serpiente, Arquero Escorpi",
+    "MAX_TARGET_MARKS": 40
+  },
+  "fishing": {
+    "enabled": false,
+    "HOLD_S": 0.2,
+    "DEBUG_KEYS": false,
+    "USE_BOLA": true,
+    "BOLA_VNUM": 27610,
+    "BOLA_REFRESH": 120.0,
+    "USE_FISH": true,
+    "USEFISH_MAX": 4,
+    "SKIP_JUNK": true,
+    "USE_BAIT": true,
+    "BAIT_VNUMS": [
+      27802,
+      27801
+    ],
+    "FAIL_LIMIT": 4,
+    "FAIL_BACKOFF": 20.0,
+    "STUDY_LOG": true,
+    "STUDY_SWEEP": true,
+    "FISH_TIMEOUT": 55.0,
+    "REEL_TIMEOUT": 10.0,
+    "RECAST_DELAY": 2.0
+  },
+  "follow": {
+    "enabled": false,
+    "MAIN": "MyMainCharacter",
+    "CAST_DIST": 600.0,
+    "FOLLOW_DIST": 900.0,
+    "FOLLOW_CHANNEL": false,
+    "TARGET_MAIN": true,
+    "BUFF_SLOTS": [
+      0,
+      1,
+      2
+    ],
+    "BUFF_AFFECTS": [
+      94,
+      95,
+      96
+    ],
+    "BUFF_REFRESH_AT": 15.0,
+    "BUFF_GAP": 2.5
+  },
+  "goto": {
+    "enabled": false,
+    "CMD": "/goto",
+    "SCALE_BELOW": 20000.0
+  },
+  "keeproute": {
+    "enabled": false,
+    "WALK_STATE": 138,
+    "RESUME_EVERY": 1.5,
+    "RESUME_LIMIT": 12,
+    "ARRIVE_DIST": 300.0,
+    "VERBOSE": true
+  },
+  "lootdiag": {
+    "enabled": false,
+    "EVERY": 1.0,
+    "QUIET_REPEAT": 30.0
+  },
+  "mobdiag": {
+    "enabled": false,
+    "EVERY": 4.0,
+    "NAME_LIKE": "Lobo"
+  },
+  "modui": {
+    "enabled": true,
+    "OPEN_ON_START": false,
+    "TOGGLE_KEY": 68,
+    "WIDTH": 520,
+    "HEIGHT": 430
+  },
+  "nocollide": {
+    "enabled": false,
+    "NO_TERRAIN": false,
+    "SOLID_RACES": [
+      8000,
+      8999
+    ],
+    "ONLY_ON_WAYPOINT": true,
+    "WALK_STATE": 138,
+    "DEBUG": false,
+    "DEBUG_S": 3.0,
+    "VERBOSE": true
+  },
+  "posinfo": {
+    "enabled": false,
+    "INTERVAL": 2.0,
+    "PROBE": false
+  },
+  "shoppos": {
+    "enabled": false,
+    "URL": "https://example.com/api/shops",
+    "UPLOAD_TOKEN": "replace-with-your-token",
+    "SCAN_PERIOD": 4.0,
+    "REFRESH_H": 6.0,
+    "MAX_BATCH": 200,
+    "MAX_SHOPS": 5000
+  },
+  "unstick": {
+    "enabled": false,
+    "CHECK_EVERY": 0.5,
+    "STUCK_S": 2.5,
+    "MIN_PROGRESS": 60.0,
+    "NEAR_DIST": 400.0,
+    "SIDESTEP": 1100.0,
+    "SETTLE_S": 2.5,
+    "MAX_TRIES": 3,
+    "COOLDOWN_S": 15.0,
+    "VERBOSE": true
+  }
+}

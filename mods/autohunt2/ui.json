@@ -1,0 +1,28 @@
+{
+  "title": "Auto hunt",
+  "hint": "Objectives run in strict priority: 1 BOSS, 2 METIN, 3 preferred trash. Tiers 1 and 2 SEEK and interrupt whatever is being fought. Tier 3 never interrupts - it only decides what to take next. An empty list means that tier is off.",
+  "rows": [
+    {"type": "label", "text": "1  BOSS - seek and interrupt"},
+    {"type": "value", "key": "BOSS_RACES", "label": "Boss races"},
+    {"type": "label", "text": "2  METIN - seek and interrupt"},
+    {"type": "value", "key": "METIN_RACES", "label": "Metin races"},
+    {"type": "label", "text": "3  TRASH - preference only"},
+    {"type": "value",  "key": "TRASH_RACES", "label": "Preferred races"},
+    {"type": "slider", "key": "TRASH_RANGE", "label": "Prefer within",
+                       "min": 500, "max": 8000, "step": 250},
+    {"type": "separator"},
+    {"type": "checkbox", "key": "ONLY_BOSSES", "label": "Only bosses"},
+    {"type": "checkbox", "key": "ONLY_METINS", "label": "Only metins"},
+    {"type": "label", "text": "Either one stops SEEKING trash."},
+    {"type": "label", "text": "A fight in progress still finishes."},
+    {"type": "separator"},
+    {"type": "checkbox", "key": "USE_SKILLS", "label": "Use skills"},
+    {"type": "checkbox", "key": "SKILLS_WHILE_MOUNTED", "label": "Dismount to cast while mounted"},
+    {"type": "label", "text": "Uncheck on characters that cannot attack mounted."},
+    {"type": "checkbox", "key": "MOUNT_ONLY_ON_STONES", "label": "Remount only for stones"},
+    {"type": "label", "text": "On: mounted vs metins, on foot vs bosses."},
+    {"type": "checkbox", "key": "METIN_SWEEP_MOUNTED", "label": "Rear sweep while mounted"},
+    {"type": "label", "text": "Off: no 180-and-clear when riding at a stone."},
+    {"type": "button", "label": "Revert", "action": "reset", "x": 10}
+  ]
+}
