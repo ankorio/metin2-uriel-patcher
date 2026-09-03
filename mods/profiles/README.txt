@@ -16,7 +16,7 @@ other character too. A profile fixes that.
 The profile is MERGED OVER config.json, not swapped for it, so it only needs to
 contain what DIFFERS:
 
-      { "autohunt2": { "BOSS_RACES": ["Arquero Bestial"] },
+      { "autohunt2": { "ONLY_BOSSES": true },
         "nocollide": { "enabled": false } }
 
 Everything not mentioned comes from config.json. That is deliberate: a mod added
