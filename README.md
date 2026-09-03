@@ -8,7 +8,7 @@ a byte histogram in three seconds, the imports decode with it, and the entry
 point has the shape of every MSVC start-up. This repository is the complete
 tool chain built on that (an offline unpacker, an offset resolver that never
 hardcodes an address, a DLL that takes the anti-cheat's place and hosts Python
-mods, and the mods) plus nine documents that teach it from zero as a
+mods, and the mods) plus a set of documents that teach it from zero as a
 reverse-engineering case study. Verified on eight client builds and one live
 boot. **Every weakness here has been disclosed and this tool is not
 maintained**: see the next paragraph.
@@ -16,7 +16,7 @@ maintained**: see the next paragraph.
 > **Disclosure and status.** Everything this project relies on was reported
 > to the developers of the Triarch Online server and to the developers of
 > the Uriel anti-cheat before publication. It is published as learning
-> material, with their knowledge, once they had what they needed to fix it.
+> material after that disclosure, once both had what they needed to fix it.
 > **This tool will not be maintained for later versions of either the client
 > or the anti-cheat.** If a newer build breaks it, that is the expected
 > outcome, not a bug to report: the documents in `docs/` describe how the
