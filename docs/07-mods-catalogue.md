@@ -223,8 +223,8 @@ loot. Three modes:
 `TRIGGER_ON_KILL`, `IDLE_INTERVAL`, `SET_CLIENT_FLAG`, `VERBOSE`, Revert.
 
 **Profile notes.** `WANTED` differs per character in practice (the example
-config shows `["Espada", 27610]`; the reference client is Spanish-localised, so
-names in configs are Spanish strings). Name matching is localised; prefer vnums.
+config shows `["Sword", 27610]`; names follow the client's active locale pack,
+the examples use the English one). Name matching is localised; prefer vnums.
 
 **Limitations.** Needs api v13 for pickup, v15 for `WANTED` (falls back to
 blind pickup with a log line). The kill trigger and fetching need the native
@@ -565,7 +565,7 @@ within a second. A map or channel change drops everything and re-sweeps.
 
 **Config keys.** `SWEEP_EVERY = 5.0`, `CHUNK = 100000`, `RADIUS_LO = 500000`,
 `RADIUS_HI = 50000`, `MAX_MARKS = 60`, `MARK_BASE = 991000`,
-`TARGET_NAMES = "Arquero Serpiente, Arquero Escorpi"` (comma string or JSON
+`TARGET_NAMES = "Snake Archer, Scorpion Archer"` (comma string or JSON
 list of case-insensitive substrings of the localised name; empty = stones
 only), `MAX_TARGET_MARKS = 40`, `TARGET_MARK_BASE = 992000`.
 
@@ -653,7 +653,7 @@ visual, and children of one do not render). Opening a tab reads that mod's
 `ui.json`, prepends the injected `Enable <mod>` checkbox, computes effective
 values (shared config with the profile merged over, then unsaved edits) and
 calls `api.ui.render`. Edits go to `_pending`; the title shows `Mods *`.
-**Guardar** (Save) merges them into `api.config_path()` with one atomic
+**Save** merges them into `api.config_path()` with one atomic
 write; `reset` drops the open tab's edits. F10 toggles the window by wrapping
 `OnKeyDown` on the game phase window. The open/closed state is runtime-only
 because both clients share one config file.

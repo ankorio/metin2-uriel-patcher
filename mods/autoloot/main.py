@@ -114,7 +114,7 @@ TAKE_MONEY = True
 #   an int    -> vnum, the item TYPE. Stable and language-independent.
 #                Yang reads as vnum 1 here; a bow read as 2080.
 #   a string  -> matched case-insensitively against the item's display NAME,
-#                as a substring: "arco" matches "Arco Ojo Rojo +0".
+#                as a substring: "bow" matches "Red Eye Bow+0".
 #                Convenient, but the name is LOCALISED - a client in another
 #                language will not match. Prefer vnums for anything permanent.
 #

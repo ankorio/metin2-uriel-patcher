@@ -136,12 +136,12 @@ FISH_NAME = {
     70205: "BrownDye", 70206: "BlackDye", 70207: "Bleach", 70208: "BrownDye",
 }
 
-# BAIT: before each round, bait the rod with a "small fish" (vnum 27802, Spanish
-# "Pez Pequeno") if we have one - it works like a Worm but improves the odds of a
+# BAIT: before each round, bait the rod with a "small fish" (vnum 27802, "Minnow" in
+# the English locale) if we have one - it works like a Worm but improves the odds of a
 # bigger catch. Uses the client's own use-item path (net.SendItemUsePacket) on the
 # inventory cell; if we have none, we just cast with whatever's on the rod.
 USE_BAIT = True
-BAIT_VNUMS = [27802, 27801]   # bait to use, in preference order: small fish (Pez Pequeño,
+BAIT_VNUMS = [27802, 27801]   # bait to use, in preference order: small fish (Minnow,
                               #   better catches) then Worm (basic). Casting with NO bait
                               #   just cancels, so if none are held we PAUSE instead.
 BAIT_SETTLE = 0.5        # s to let the bait apply before casting

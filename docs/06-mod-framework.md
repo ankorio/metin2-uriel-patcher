@@ -867,10 +867,11 @@ ignored` — that line is your spell-checker. Save the file **without a BOM**.
 ```
 
 Do not add an `enabled` checkbox; `modui` injects it. Press F10 in game, click
-`hello` in the rail, change the slider, press **Guardar** (Save). The
-reference client is Spanish-localised, so its buttons and its mob and item
-names are Spanish strings; that is also why names in the example configs read
-`"Lobo"` or `"Espada"`, and why the mods prefer vnums to names. One write
+`hello` in the rail, change the slider, press **Save**. Mob and item
+names the mods see come from the client's active locale pack; the example
+configs use the English one (`"Wolf"`, `"Sword"`), and a client set to
+another language will not match them, which is why the mods prefer vnums to
+names. One write
 goes to `config.json` (or your profile), the host reloads, and `on_load` logs
 the new interval.
 

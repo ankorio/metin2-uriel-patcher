@@ -63,7 +63,7 @@
     "TAKE_ITEMS": true,
     "TAKE_MONEY": true,
     "WANTED": [
-      "Espada",
+      "Sword",
       27610
     ],
     "NAME_MIN_LEN": 4,
@@ -84,7 +84,7 @@
     "enabled": false,
     "SWEEP_EVERY": 5.0,
     "MAX_MARKS": 60,
-    "TARGET_NAMES": "Arquero Serpiente, Arquero Escorpi",
+    "TARGET_NAMES": "Snake Archer, Scorpion Archer",
     "MAX_TARGET_MARKS": 40
   },
   "fishing": {
@@ -151,7 +151,7 @@
   "mobdiag": {
     "enabled": false,
     "EVERY": 4.0,
-    "NAME_LIKE": "Lobo"
+    "NAME_LIKE": "Wolf"
   },
   "modui": {
     "enabled": true,

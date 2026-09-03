@@ -44,11 +44,11 @@ MARK_BASE = 991000
 
 # Named-monster red dots. TARGET_NAMES is a COMMA-SEPARATED list of
 # case-insensitive SUBSTRINGS matched against each instance's in-client
-# (localised!) name - so "Arquero Serpiente" tags the Snake Archer and "Arquero
-# Escorpi" the Scorpion Archer without needing the accented o. A plain comma
+# (localised!) name - so "Snake Archer" tags the Snake Archer and "Scorpion Arch"
+# the Scorpion Archer (a prefix is enough; accented letters can be left out). A plain comma
 # string is what the UI edit box writes; a JSON list works too. Empty = feature
 # off, stones only.
-TARGET_NAMES = "Arquero Serpiente, Arquero Escorpi"
+TARGET_NAMES = "Snake Archer, Scorpion Archer"
 MAX_TARGET_MARKS = 40
 TARGET_MARK_BASE = 992000       # disjoint from the metin range above
 

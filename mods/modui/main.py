@@ -406,7 +406,7 @@ def _build(api):
         T("hint.Show", lambda: _hint.Show())
 
     if api.ui is not None:
-        api.ui.render({"rows": [{"type": "button", "label": "Guardar",
+        api.ui.render({"rows": [{"type": "button", "label": "Save",
                                  "action": "save", "x": RAIL_X}]},
                       _win, {}, lambda k, v: _on_change(api, k, v),
                       api.log, width=WIDTH, top=HEIGHT - 44)

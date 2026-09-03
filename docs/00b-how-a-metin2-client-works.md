@@ -171,7 +171,7 @@ session key (XTEA in this fork) and carries a sequence byte, so a replayed
 or invented packet is detectable.
 
 The stub hooks the receive and send paths (document 05) to observe traffic,
-and the framework deliberately exposes no way to build a packet by hand.
+and our framework deliberately exposes no way to build a packet by hand.
 The server side logs what it sees, and a malformed packet from a real
 account is a fingerprint. Nothing in this repository sends anything the
 unmodified client would not send.
@@ -182,9 +182,10 @@ Models, textures, maps, sounds, and the compiled scripts live in **pack
 files** under `pack/`, read through the engine's virtual file system. The
 lineage's format is EterPack (an index file plus a data file, with per-file
 compression and optional encryption); this client uses a reworked variant
-with per-file keys. Text the UI shows lives in a locale pack (the reference
-client is Spanish-localised, which is why strings such as *Guardar* appear
-in the documents).
+with per-file keys. Text the UI shows lives in locale packs, one per language; the
+login screen offers a dozen. These documents and the example configs use the
+English pack. Mods that match by name see whatever locale the client is set
+to, which is why configs prefer vnums to names.
 
 The unpacker never touches any of this: the packs are consumed by the
 running client, and the stub and mods work on the running client.
