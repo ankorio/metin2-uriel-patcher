@@ -154,7 +154,7 @@ sequenceDiagram
     G->>S: slot 1 anticheat.Tick, first frame (+6.002 s)
     S->>P: RunLine(bootstrap), modhost.boot() (+6.085 s)
     P-->>S: TRIARCH_MODS = ok
-    Note over P: first pump, mods load; a mod importing triarch_native here sees None
+    Note over P: first pump, mods load. A mod importing triarch_native here sees None
     S->>P: InitModule("triarch_native", g_methods) (+6.154 s)
     Note over S,P: from here on, pump every frame, natives available
 ```
