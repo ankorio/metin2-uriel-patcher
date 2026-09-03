@@ -1,5 +1,27 @@
 # m2-uriel-patcher
 
+**TL;DR** — Uriel Anti-Cheat encrypts a Metin2 client's code with one
+4096-byte XOR key reused on every page, leaves the original import table on
+disk with the names XORed by that same key, and moves the entry point into a
+NOP sled. All three undo themselves from the file alone: the key falls out of
+a byte histogram in three seconds, the imports decode with it, and the entry
+point has the shape of every MSVC start-up. This repository is the complete
+tool chain built on that (an offline unpacker, an offset resolver that never
+hardcodes an address, a DLL that takes the anti-cheat's place and hosts Python
+mods, and the mods) plus nine documents that teach it from zero as a
+reverse-engineering case study. Verified on eight client builds and one live
+boot. **Every weakness here has been disclosed and this tool is not
+maintained**: see the next paragraph.
+
+> **Disclosure and status.** Everything this project relies on was reported
+> to the developers of the Triarch Online server and to the developers of
+> the Uriel anti-cheat before publication. It is published as learning
+> material, with their knowledge, once they had what they needed to fix it.
+> **This tool will not be maintained for later versions of either the client
+> or the anti-cheat.** If a newer build breaks it, that is the expected
+> outcome, not a bug to report: the documents in `docs/` describe how the
+> analysis was done, and that is the part meant to outlive the code.
+
 An offline unpacker, a re-derivable offset resolver, a replacement DLL and a
 Python mod framework for a Metin2-based Windows client protected by
 **Uriel Anti-Cheat** — published as a reverse-engineering case study.
@@ -17,13 +39,6 @@ triarch.exe  (protected)
 
 `patcher/` wraps all of that into a single drop-in executable that does the
 seven steps in order and writes a log you can read.
-
-> **Disclosure.** The weaknesses this project relies on (a reused XOR
-> keystream on `.text`, the original import table left on disk with names
-> obfuscated by the same key, an entry point found by shape) were reported to
-> the anti-cheat's developers before this repository was published. Expect a
-> future protector build to close them; when it does, the documents in
-> `docs/` still describe how the analysis was done, which is the point.
 
 ## Who this is for
 
@@ -98,7 +113,6 @@ is exactly the silent-wrong-address bug this project exists to avoid.
 | 06 | [the mod framework](docs/06-mod-framework.md) | modhost lifecycle, the API surface, config and profiles, writing a mod |
 | 07 | [mods catalogue](docs/07-mods-catalogue.md) | every shipped mod: purpose, config keys, what it teaches |
 | 08 | [glossary](docs/08-glossary.md) | the vocabulary, briefly |
-| 09 | [lab setup](docs/09-lab-setup.md) | tools, VM hygiene, the measure-don't-infer workflow |
 
 ## Requirements
 
