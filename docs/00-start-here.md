@@ -55,7 +55,6 @@ assumes; read it before the first launch of anything.
 | [06 the mod framework](06-mod-framework.md) | you want to write a mod | 40 min |
 | [07 mods catalogue](07-mods-catalogue.md) | you want to see what has been built with it | reference |
 | [08 glossary](08-glossary.md) | whenever a word is unfamiliar | reference |
-| [09 lab setup](09-lab-setup.md) | before you run anything on a machine you care about | 20 min |
 
 If you only have an hour: read 00b, 01 and 02. They contain the whole idea.
 
@@ -89,11 +88,3 @@ open beside the text. The tools are small enough to read whole:
 | `stub/uriel_stub.cpp` | ~3500 | the DLL: hooks, natives, Python bootstrap |
 | `mods/modhost.py`, `mods/api.py` | ~550 + ~1300 | the mod host and the API mods call |
 
-## A note on honesty
-
-The documents record what was measured, and where an earlier belief turned
-out wrong they say so (the README of the patcher once explained at length why
-the game had to run to be unpacked; it did not). Reverse engineering is mostly
-the discipline of not trusting your own first reading of a disassembly.
-When you extend this project, keep that habit: a `mov` you found is not proof
-it executes until you have watched it execute.

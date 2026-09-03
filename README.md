@@ -22,10 +22,6 @@ maintained**: see the next paragraph.
 > outcome, not a bug to report: the documents in `docs/` describe how the
 > analysis was done, and that is the part meant to outlive the code.
 
-An offline unpacker, a re-derivable offset resolver, a replacement DLL and a
-Python mod framework for a Metin2-based Windows client protected by
-**Uriel Anti-Cheat** — published as a reverse-engineering case study.
-
 The whole chain runs without ever launching the game:
 
 ```
