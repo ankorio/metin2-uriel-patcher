@@ -25,6 +25,7 @@ code is silent, so is this document.
    - [Fault isolation](#27-fault-isolation)
    - [Logging and secret redaction](#28-logging-and-secret-redaction)
    - [The UTF-8 BOM pitfall](#29-the-utf-8-bom-pitfall)
+   - [Hosting another mod as a library](#210-hosting-another-mod-as-a-library)
 3. [The mod contract](#3-the-mod-contract)
 4. [The `api` surface](#4-the-api-surface)
    - [Output and persistence](#41-output-and-persistence)
@@ -59,13 +60,13 @@ interpreter that is already there.
 
 The layers, bottom to top:
 
-| Layer | File | Job |
-|---|---|---|
-| 1 | `stub/uriel_stub.cpp` (the DLL the patcher installs) | Find the client's own `CPythonLauncher::RunLine(const char*)` and use it to execute one bootstrap string, once. Then call `_triarch_pump()` on a timer. |
-| 2 | `mods/modhost.py` | Discovery, configuration, lifecycle, fault isolation, hot reload. |
-| 3 | `mods/api.py` | The façade every mod is written against. Wraps the client's renamed native modules and the stub's `triarch_native` gateway. |
-| 3b | `mods/uikit.py` | A declarative renderer for settings pages, handed to mods as `api.ui`. |
-| 4 | `mods/<name>/main.py` | A mod. |
+| Layer | File                                                 | Job                                                                                                                                                     |
+| ----- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | `stub/uriel_stub.cpp` (the DLL the patcher installs) | Find the client's own `CPythonLauncher::RunLine(const char*)` and use it to execute one bootstrap string, once. Then call `_triarch_pump()` on a timer. |
+| 2     | `mods/modhost.py`                                    | Discovery, configuration, lifecycle, fault isolation, hot reload.                                                                                       |
+| 3     | `mods/api.py`                                        | The façade every mod is written against. Wraps the client's renamed native modules and the stub's `triarch_native` gateway.                             |
+| 3b    | `mods/uikit.py`                                      | A declarative renderer for settings pages, handed to mods as `api.ui`.                                                                                  |
+| 4     | `mods/<name>/main.py`                                | A mod.                                                                                                                                                  |
 
 The bootstrap string (`kBootstrapFmt` in `uriel_stub.cpp`) reads
 `mods/modhost.py`, `exec`s it into a fresh globals dictionary with `MODS_DIR`
@@ -78,11 +79,11 @@ retry), so without that channel a silent failure would look like success.
 
 Paths, relative to the game executable:
 
-| Path | Contents |
-|---|---|
-| `<exe>\mods\` | `modhost.py`, `api.py`, `uikit.py`, `config.json`, `natives.json`, one folder per mod, `profiles\` |
-| `<exe>\_patcher\` | runtime data: `mods.log`, `uriel_stub.log`, `link\`, anything a mod saves with `api.store_save` |
-| `<exe>\_patcher\mods.off` | kill switch: if this file exists at start-up the stub never bootstraps the mod host |
+| Path                      | Contents                                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `<exe>\mods\`             | `modhost.py`, `api.py`, `uikit.py`, `config.json`, `natives.json`, one folder per mod, `profiles\` |
+| `<exe>\_patcher\`         | runtime data: `mods.log`, `uriel_stub.log`, `link\`, anything a mod saves with `api.store_save`    |
+| `<exe>\_patcher\mods.off` | kill switch: if this file exists at start-up the stub never bootstraps the mod host                |
 
 ### 1.2 The tick
 
@@ -242,7 +243,7 @@ Two timing details from `_poll_reload`:
 
 - The character name is not known when mods first load; it arrives seconds
   later, once in the world. The poll loop re-evaluates `profile_path()` every
-  second and treats a change in *which* profile applies as a config change, so
+  second and treats a change in _which_ profile applies as a config change, so
   the profile kicks in shortly after login and `mods.log` shows
   `profile: <name>.json`.
 - The UI writes to `api.config_path()`, which resolves to the profile when one
@@ -330,7 +331,7 @@ Windows editors begins with the byte-order mark, which decodes to `U+FEFF`.
 parse fails. Follow the code from there:
 
 1. `load_config()` gets `None` back, logs `config.json is invalid - ignoring
-   it` with the traceback, and sets `_cfg = {}` and `_cfg_mtime = 0.0`.
+it` with the traceback, and sets `_cfg = {}` and `_cfg_mtime = 0.0`.
 2. With an empty config every mod is enabled with defaults (the design is
    "a typo in config must never take the mod host down").
 3. On the next poll, `_mtime(CONFIG_PATH)` is a real number and `_cfg_mtime`
@@ -341,6 +342,28 @@ The symptom is a `mods.log` that grows by a reload cycle per second, and mods
 whose `on_load` runs continuously. The fix is to save `config.json` without a
 BOM. The same applies to profile files.
 
+### 2.10 Hosting another mod as a library
+
+`ribfarmer` and `orcfarmer` do not reimplement `autohunt2` and `autoloot`;
+they **`exec` those files into private namespaces of their own** and push
+overrides in. This is the isolation the host gives every mod, used twice —
+the hosted engine has genuinely separate module state (its globals, its
+caches, its timers) and cannot interfere with a directly-loaded copy of
+itself. Each preset also polls the engine files for mtime changes on its own
+`ENGINE_POLL_S` cadence and re-`exec`s on a change, mirroring the host's own
+hot-reload contract so editing `autoloot/main.py` behaves identically
+whether it is loaded directly or by a preset. Two additional environment
+keys (`TRIARCH_FIGHT_BUSY`, `TRIARCH_AGGRO`) coordinate the three-way
+FIGHT > LOOT > HUNT priority; see `07 — Mods catalogue`.
+
+Two rules make this safe. First, only ONE hunting engine can drive the
+client at a time: each preset refuses to run when `autohunt2`, `autoloot`
+or another preset is enabled for this character, names the mod in the way,
+and stands down without disabling anyone. Second, the preset publishes an
+`enabled` section itself, and `on_unload` on the preset unwinds every
+hosted engine explicitly — a hosted `autoloot` fetch in flight would
+otherwise outlive the mod that started it.
+
 ---
 
 ## 3. The mod contract
@@ -348,12 +371,12 @@ BOM. The same applies to profile files.
 A mod is `mods/<name>/main.py`, optionally with `mods/<name>/ui.json`. The
 host looks up these module-level names:
 
-| Name | Called | Notes |
-|---|---|---|
-| `on_load(api)` | after the file is exec'd and config applied | Reset your module state here: a hot reload re-execs the file, but globals you assign in `on_load` are what you can trust. Check `api.VERSION` and bail out with a log line if too old. |
-| `on_update(api, dt)` | every pump, while enabled | `dt` = seconds since the previous pump. Return early unless `api.in_game()`. |
-| `on_unload(api)` | on reload, on disable, on config change, on api/uikit reload, when the folder is deleted | Restore **everything** you changed: patched functions, engine flags, marks, environment keys. |
-| `CAPABILITIES` | read at load, logged | A list of strings such as `["read", "move"]`. Recorded and logged (`caps=[...]`), **not enforced**. It documents intent. |
+| Name                 | Called                                                                                   | Notes                                                                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `on_load(api)`       | after the file is exec'd and config applied                                              | Reset your module state here: a hot reload re-execs the file, but globals you assign in `on_load` are what you can trust. Check `api.VERSION` and bail out with a log line if too old. |
+| `on_update(api, dt)` | every pump, while enabled                                                                | `dt` = seconds since the previous pump. Return early unless `api.in_game()`.                                                                                                           |
+| `on_unload(api)`     | on reload, on disable, on config change, on api/uikit reload, when the folder is deleted | Restore **everything** you changed: patched functions, engine flags, marks, environment keys.                                                                                          |
+| `CAPABILITIES`       | read at load, logged                                                                     | A list of strings such as `["read", "move"]`. Recorded and logged (`caps=[...]`), **not enforced**. It documents intent.                                                               |
 
 There are no other hooks. In particular there is no `on_key`, `on_chat` or
 `on_phase`. Mods that need those wrap the client's own Python objects and
@@ -374,7 +397,7 @@ Rules that the shipped mods converged on after getting them wrong:
 1. **No `ENABLED` flag.** See section 2.2.
 2. **Typed fields are read with `api.field("name")`, never
    `api.player.<field>`.** See section 4.10.
-3. **Restore on unload *and* on leaving the world.** A global change outlives
+3. **Restore on unload _and_ on leaving the world.** A global change outlives
    the mod otherwise. `nocollide` clears both switches when `in_game()` turns
    false, not just in `on_unload`.
 4. **Never treat "cannot read" as "false".** Hold the previous state and warn
@@ -450,24 +473,24 @@ look the same.
 
 ### 4.1 Output and persistence
 
-| Call | Semantics |
-|---|---|
-| `api.log(msg)` | Append a tagged line to `mods.log`. Never raises. |
-| `api.chat(msg) -> bool` | Write a line into the in-game chat window (`chat.AppendChat`, info type). Local rendering only; nothing is transmitted. `False` before the chat window exists. |
-| `api.store_save(name, obj) -> bool` | Write `obj` as JSON to `_patcher\<name>`, atomically (temp file + `os.replace`). |
-| `api.store_load(name, default=None)` | Read it back, or `default`. |
-| `api.data_path(name) -> str` | The full path under `_patcher\`. |
-| `api.config_path() -> str` | The config file a mod should **write** for this character: the profile if one exists, else `mods/config.json`. Never creates anything. |
+| Call                                 | Semantics                                                                                                                                                      |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.log(msg)`                       | Append a tagged line to `mods.log`. Never raises.                                                                                                              |
+| `api.chat(msg) -> bool`              | Write a line into the in-game chat window (`chat.AppendChat`, info type). Local rendering only; nothing is transmitted. `False` before the chat window exists. |
+| `api.store_save(name, obj) -> bool`  | Write `obj` as JSON to `_patcher\<name>`, atomically (temp file + `os.replace`).                                                                               |
+| `api.store_load(name, default=None)` | Read it back, or `default`.                                                                                                                                    |
+| `api.data_path(name) -> str`         | The full path under `_patcher\`.                                                                                                                               |
+| `api.config_path() -> str`           | The config file a mod should **write** for this character: the profile if one exists, else `mods/config.json`. Never creates anything.                         |
 
 ### 4.2 Session state
 
-| Call | Semantics |
-|---|---|
-| `api.now() -> float` | `time.time()`. |
-| `api.in_game() -> bool` | The player exists and has a position. |
-| `api.channel() -> int` | `app.GetChannel()`, `0` if unknown. |
-| `api.map_name() -> str` | `background.GetCurrentMapName()`, `""` if unknown. World coordinates are global across the map atlas, so a position on another map is a real place somewhere else — `follow` gates on this. |
-| `api.map_base() -> (x, y) | None` | Origin of the current map in atlas units, derived by feeding `(0, 0)` to `GlobalPositionToLocalPosition` and negating. |
+| Call                      | Semantics                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.now() -> float`      | `time.time()`.                                                                                                                                                                              |
+| `api.in_game() -> bool`   | The player exists and has a position.                                                                                                                                                       |
+| `api.channel() -> int`    | `app.GetChannel()`, `0` if unknown.                                                                                                                                                         |
+| `api.map_name() -> str`   | `background.GetCurrentMapName()`, `""` if unknown. World coordinates are global across the map atlas, so a position on another map is a real place somewhere else — `follow` gates on this. |
+| `api.map_base() -> (x, y) | None`                                                                                                                                                                                       | Origin of the current map in atlas units, derived by feeding `(0, 0)` to `GlobalPositionToLocalPosition` and negating. |
 
 ### 4.3 Entities
 
@@ -476,12 +499,12 @@ character's VID" and "the current target VID" respectively. `api.entity(vid)`
 wraps any VID (captured, not re-resolved, so it goes stale when the instance
 despawns).
 
-| Call | Semantics |
-|---|---|
-| `.vid() -> int` | `0` when there is none. |
-| `.exists() -> bool` | `vid() != 0`. |
-| `.name() -> str` | `pack_chr.GetNameByVID`. The client reports the literal string `"None"` for a character not yet in the world; the host does not adopt that as an identity. |
-| `.position() -> (x, y, z) | None` | `pack_chr.GetPixelPosition(vid)`, falling back to `SelectInstance` + bare call on `TypeError`. The sentinel `(-100, -100, -100)` ("instance exists but is not placed") is reported as `None`. Do not use `GetActorPixelPosition`: it returns uninitialised memory. |
+| Call                      | Semantics                                                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.vid() -> int`           | `0` when there is none.                                                                                                                                    |
+| `.exists() -> bool`       | `vid() != 0`.                                                                                                                                              |
+| `.name() -> str`          | `pack_chr.GetNameByVID`. The client reports the literal string `"None"` for a character not yet in the world; the host does not adopt that as an identity. |
+| `.position() -> (x, y, z) | None`                                                                                                                                                      | `pack_chr.GetPixelPosition(vid)`, falling back to `SelectInstance` + bare call on `TypeError`. The sentinel `(-100, -100, -100)` ("instance exists but is not placed") is reported as `None`. Do not use `GetActorPixelPosition`: it returns uninitialised memory. |
 
 `api.player` is additionally a namespace (section 4.13), so
 `api.player.position()` (curated) and `api.player.GetTargetVID()` (raw
@@ -489,81 +512,81 @@ binding) both work.
 
 ### 4.4 World queries
 
-| Call | Semantics |
-|---|---|
-| `api.vid_of(name) -> int` | VID of a named character **in this client**, or `0`. VIDs are per-client instance ids; a VID from another client means nothing here. `GetVIDByName` returns `-1` for "not here"; the wrapper turns that into `0`. |
-| `api.has_instance(vid) -> bool` | `pack_chr.HasInstance`. |
-| `api.instance_types() -> {int: str}` | The client's own `INSTANCE_TYPE_*` constants, read at call time rather than hardcoded (on this build a player reports type 6 and type 0 is an ordinary monster). |
-| `api.describe(vid) -> dict | None` | `vid, name, type, type_name, race, level, guild, dead, stone, npc, enemy, pc, pos`. Each field individually guarded. `None` unless the instance is registered. |
+| Call                                                             | Semantics                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.vid_of(name) -> int`                                        | VID of a named character **in this client**, or `0`. VIDs are per-client instance ids; a VID from another client means nothing here. `GetVIDByName` returns `-1` for "not here"; the wrapper turns that into `0`.                                                                      |
+| `api.has_instance(vid) -> bool`                                  | `pack_chr.HasInstance`.                                                                                                                                                                                                                                                                |
+| `api.instance_types() -> {int: str}`                             | The client's own `INSTANCE_TYPE_*` constants, read at call time rather than hardcoded (on this build a player reports type 6 and type 0 is an ordinary monster).                                                                                                                       |
+| `api.describe(vid) -> dict                                       | None`                                                                                                                                                                                                                                                                                  | `vid, name, type, type_name, race, level, guild, dead, stone, npc, enemy, pc, pos`. Each field individually guarded. `None` unless the instance is registered. |
 | `api.actors(races=None, radius=None, alive_only=True) -> [dict]` | Every character the client holds, nearest first: `vid, race, name, pos, dist`. Walks the character manager through the stub (there is no binding for this). `races` is a set of race numbers applied before the expensive per-VID calls. Returns `[]` when the native layer is absent. |
 
 ### 4.5 Targeting, skills and affects
 
-| Call | Semantics |
-|---|---|
-| `api.set_target(vid) -> bool` | `playerm2g2.SetTarget(vid, GetPhaseWindow(5))`. The two-argument form is required: the binding compares its second argument against the game-phase window and silently does nothing on mismatch — an anti-bot gate that breaks every stock script. |
-| `api.clear_target() -> bool` | `ClearTarget()`. |
-| `api.select(vid) -> bool` | `pack_chr.Select` — the world selection, distinct from the UI target. `follow` uses clear → select → set to displace a stale selection. |
-| `api.use_quickslot(index) -> bool` | `RequestUseLocalQuickSlot(index)` — exactly what pressing hotbar key `index+1` does. No skill ids, no packets from the mod. |
-| `api.quickslot(index) -> (type, value) | None` | `(0, 0)` means empty; type 2 is a skill. |
-| `api.affect_seconds(idx) -> int` | `GetAffectData(idx, 0)`: seconds remaining on affect `idx`, `0` if absent. Measured by watching slots count down. |
-| `api.active_affects(indices) -> {str(idx): seconds}` | The subset of `indices` currently active. |
-| `api.affects()` | The raw affect list, shape unpinned; for experiments. |
-| `api.auto_pickup(on=None) -> bool | None` | Read or set the client's own AUTO_PICK option. Documented as **not** gating `PickCloseItemVector`; exposed so the options window agrees with reality. |
+| Call                                                 | Semantics                                                                                                                                                                                                                                          |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.set_target(vid) -> bool`                        | `playerm2g2.SetTarget(vid, GetPhaseWindow(5))`. The two-argument form is required: the binding compares its second argument against the game-phase window and silently does nothing on mismatch — an anti-bot gate that breaks every stock script. |
+| `api.clear_target() -> bool`                         | `ClearTarget()`.                                                                                                                                                                                                                                   |
+| `api.select(vid) -> bool`                            | `pack_chr.Select` — the world selection, distinct from the UI target. `follow` uses clear → select → set to displace a stale selection.                                                                                                            |
+| `api.use_quickslot(index) -> bool`                   | `RequestUseLocalQuickSlot(index)` — exactly what pressing hotbar key `index+1` does. No skill ids, no packets from the mod.                                                                                                                        |
+| `api.quickslot(index) -> (type, value)               | None`                                                                                                                                                                                                                                              | `(0, 0)` means empty; type 2 is a skill.                                                                                                              |
+| `api.affect_seconds(idx) -> int`                     | `GetAffectData(idx, 0)`: seconds remaining on affect `idx`, `0` if absent. Measured by watching slots count down.                                                                                                                                  |
+| `api.active_affects(indices) -> {str(idx): seconds}` | The subset of `indices` currently active.                                                                                                                                                                                                          |
+| `api.affects()`                                      | The raw affect list, shape unpinned; for experiments.                                                                                                                                                                                              |
+| `api.auto_pickup(on=None) -> bool                    | None`                                                                                                                                                                                                                                              | Read or set the client's own AUTO_PICK option. Documented as **not** gating `PickCloseItemVector`; exposed so the options window agrees with reality. |
 
 ### 4.6 Movement and attack
 
-| Call | Semantics |
-|---|---|
-| `api.move_to(x, y) -> bool` | `playerm2g2.AutoMoveToPosition(x, y)` — the same auto-move the shipped auto-hunt and quest navigation use. **Not a pathfinder**: it steps straight at the destination and lets collision stop it (`unstick`'s docstring explains the four calls it reduces to). Re-issuing a move restarts pathing, so treat it as an edge, not a poll. |
-| `api.attack(vid) -> bool` | Publishes the VID in the `TRIARCH_ATTACK` environment variable; the stub calls the client's own `__OnPressActor` on the next frame, and only when the value changes. `0` stops. Exists because no Python binding attacks a chosen target on this build. |
-| `api.attack_available() -> bool` | `TRIARCH_ATTACK_OK == "1"`: the stub resolved the offsets for the bridge. |
+| Call                             | Semantics                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.move_to(x, y) -> bool`      | `playerm2g2.AutoMoveToPosition(x, y)` — the same auto-move the shipped auto-hunt and quest navigation use. **Not a pathfinder**: it steps straight at the destination and lets collision stop it (`unstick`'s docstring explains the four calls it reduces to). Re-issuing a move restarts pathing, so treat it as an edge, not a poll. |
+| `api.attack(vid) -> bool`        | Publishes the VID in the `TRIARCH_ATTACK` environment variable; the stub calls the client's own `__OnPressActor` on the next frame, and only when the value changes. `0` stops. Exists because no Python binding attacks a chosen target on this build.                                                                                 |
+| `api.attack_available() -> bool` | `TRIARCH_ATTACK_OK == "1"`: the stub resolved the offsets for the bridge.                                                                                                                                                                                                                                                               |
 
 ### 4.7 Ground items and pickup
 
-| Call | Semantics |
-|---|---|
-| `api.PICKUP_RADIUS` | `1000.0`. The client's own batch pickup keeps an item only within ~1000 units **and** if its ownership string matches our name. |
-| `api.pick_up_items() -> bool` | `PickCloseItemVector`: the client's batch pickup. One packet per surviving item, so call it on a timer. Cannot take another player's drop; the filter is native. |
-| `api.pick_up_money() -> bool` | `PickCloseMoney`, same idea for dropped currency. |
-| `api.ground_items(radius=None, mine_only=True) -> [dict]` | Every drop the client knows: `id, vnum, name, owner, pos, dist`, nearest first. Walks `CPythonItem`'s map through the stub (the bindings that look like they do this are inlined and uncallable). Defaults reproduce the client's own filter; `radius=0` and `mine_only=False` show everything. `id` is *which* drop, `vnum` is *what kind*. |
-| `api.pick_up(item_id) -> bool` | `SendItemPickUpPacket(id)`: take one specific drop. Usable only because `ground_items()` supplies valid ids. |
+| Call                                                      | Semantics                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.PICKUP_RADIUS`                                       | `1000.0`. The client's own batch pickup keeps an item only within ~1000 units **and** if its ownership string matches our name.                                                                                                                                                                                                              |
+| `api.pick_up_items() -> bool`                             | `PickCloseItemVector`: the client's batch pickup. One packet per surviving item, so call it on a timer. Cannot take another player's drop; the filter is native.                                                                                                                                                                             |
+| `api.pick_up_money() -> bool`                             | `PickCloseMoney`, same idea for dropped currency.                                                                                                                                                                                                                                                                                            |
+| `api.ground_items(radius=None, mine_only=True) -> [dict]` | Every drop the client knows: `id, vnum, name, owner, pos, dist`, nearest first. Walks `CPythonItem`'s map through the stub (the bindings that look like they do this are inlined and uncallable). Defaults reproduce the client's own filter; `radius=0` and `mine_only=False` show everything. `id` is _which_ drop, `vnum` is _what kind_. |
+| `api.pick_up(item_id) -> bool`                            | `SendItemPickUpPacket(id)`: take one specific drop. Usable only because `ground_items()` supplies valid ids.                                                                                                                                                                                                                                 |
 
 ### 4.8 Minimap and atlas marks
 
-| Call | Semantics |
-|---|---|
+| Call                                              | Semantics                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `api.atlas_mark(mark_id, x, y, label="") -> bool` | Place or move a pulsing waypoint (type 6) on the atlas. Coordinates are the ones `position()` reports, passed straight through — they are already map-local; converting them again is what made earlier marks vanish. Removes first, because `AddWayPoint` silently ignores an id that already exists. |
-| `api.atlas_unmark(mark_id) -> bool` | Remove it. |
-| `api.mark_mob(mark_id, vid, label="") -> bool` | The type-13 **target** mark, on minimap and atlas, attached to a VID so the engine moves it every frame. Needs the stub's `minimap_mark` native; returns `False` (never raises) when absent. |
-| `api.unmark_mob(mark_id) -> bool` | Remove it. |
+| `api.atlas_unmark(mark_id) -> bool`               | Remove it.                                                                                                                                                                                                                                                                                             |
+| `api.mark_mob(mark_id, vid, label="") -> bool`    | The type-13 **target** mark, on minimap and atlas, attached to a VID so the engine moves it every frame. Needs the stub's `minimap_mark` native; returns `False` (never raises) when absent.                                                                                                           |
+| `api.unmark_mob(mark_id) -> bool`                 | Remove it.                                                                                                                                                                                                                                                                                             |
 
 ### 4.9 Collision switches
 
-| Call | Semantics |
-|---|---|
-| `api.actor_pass(on, exclude=None)` | Walk through other actors; terrain unaffected. Monsters body-block by *displacement* (the engine pushes you back out every frame), and the test is a race whitelist with two exempt ranges; this widens them. `exclude=(lo, hi)` keeps one race band solid (metin stones). **Raises** if the native is missing, and raises if the stub predates band support and would have made everything passable. |
-| `api.terrain_pass(on)` | Walk through **walls**. Deliberately a separate switch so nothing can turn it on as a side effect of wanting to pass a monster. The client self-reports x/y about 2.5 times a second, so this is visible to the server. See section 6. |
+| Call                               | Semantics                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.actor_pass(on, exclude=None)` | Walk through other actors; terrain unaffected. Monsters body-block by _displacement_ (the engine pushes you back out every frame), and the test is a race whitelist with two exempt ranges; this widens them. `exclude=(lo, hi)` keeps one race band solid (metin stones). **Raises** if the native is missing, and raises if the stub predates band support and would have made everything passable. |
+| `api.terrain_pass(on)`             | Walk through **walls**. Deliberately a separate switch so nothing can turn it on as a side effect of wanting to pass a monster. The client self-reports x/y about 2.5 times a second, so this is visible to the server. See section 6.                                                                                                                                                                |
 
 ### 4.10 Typed fields: `api.field`
 
 `mods/natives.json` declares typed **fields** — named offsets into engine
 singletons that the stub resolves at start-up:
 
-| Field | Type | Access | Meaning |
-|---|---|---|---|
-| `auto_attack_vid` | u32 | r | Current auto-attack target, `0` when unengaged. |
-| `auto_attack_target` | u32 | r | The cached actor pointer beside it. |
-| `hunt_use_skill` | bool8 | rw | The autohunt window's "use skills" box. |
-| `hunt_use_mount` | bool8 | rw | Its "use mount" box (the remount gate). |
-| `hunt_stones` | bool8 | rw | Its "stones only" choice. |
-| `player_state` | u32 | r | Player state enum; `0x8A` while auto-moving. |
-| `hunt_anchor` | vec2f | rw | The point the victim search is centred on. |
-| `hunt_skills` | vector\<u8\> | r | Configured skill slots, via an adapter. |
-| `auto_move_active` | bool8 | r | A route was accepted. Not cleared on cancellation — only `player_state` moves. |
-| `auto_move_enabled` | bool8 | r | Set alongside it. |
-| `auto_move_dest` | vec2f | r | Where the current route is heading. |
-| `mounted` (instance field) | bool8 | r | `IsMountingHorse()`, inlined as a byte. |
+| Field                      | Type         | Access | Meaning                                                                        |
+| -------------------------- | ------------ | ------ | ------------------------------------------------------------------------------ |
+| `auto_attack_vid`          | u32          | r      | Current auto-attack target, `0` when unengaged.                                |
+| `auto_attack_target`       | u32          | r      | The cached actor pointer beside it.                                            |
+| `hunt_use_skill`           | bool8        | rw     | The autohunt window's "use skills" box.                                        |
+| `hunt_use_mount`           | bool8        | rw     | Its "use mount" box (the remount gate).                                        |
+| `hunt_stones`              | bool8        | rw     | Its "stones only" choice.                                                      |
+| `player_state`             | u32          | r      | Player state enum; `0x8A` while auto-moving.                                   |
+| `hunt_anchor`              | vec2f        | rw     | The point the victim search is centred on.                                     |
+| `hunt_skills`              | vector\<u8\> | r      | Configured skill slots, via an adapter.                                        |
+| `auto_move_active`         | bool8        | r      | A route was accepted. Not cleared on cancellation — only `player_state` moves. |
+| `auto_move_enabled`        | bool8        | r      | Set alongside it.                                                              |
+| `auto_move_dest`           | vec2f        | r      | Where the current route is heading.                                            |
+| `mounted` (instance field) | bool8        | r      | `IsMountingHorse()`, inlined as a byte.                                        |
 
 `api.field(name)` calls `triarch_native.field(name)` and **raises** when the
 gateway is absent. It does not return a default: a caller that cannot tell
@@ -582,12 +605,12 @@ field is declared.
 
 `api.natives` is a `_Natives` object loaded from `natives.json`:
 
-| Member | Semantics |
-|---|---|
-| `api.natives.by_name`, `.by_area` | The registry. |
-| `api.natives.module()` | The `triarch_native` module the stub registers a second or two into the run, or `None`. Misses are not cached, precisely because it appears late. |
-| `api.natives.available() -> bool` | |
-| `api.natives.call(name, args)` | Marshal `args` per the declared types (64-bit types take two dword slots) and call the stub's trampoline. Arity errors raise `TypeError` whether or not the stub is present. |
+| Member                            | Semantics                                                                                                                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.natives.by_name`, `.by_area` | The registry.                                                                                                                                                                |
+| `api.natives.module()`            | The `triarch_native` module the stub registers a second or two into the run, or `None`. Misses are not cached, precisely because it appears late.                            |
+| `api.natives.available() -> bool` |                                                                                                                                                                              |
+| `api.natives.call(name, args)`    | Marshal `args` per the declared types (64-bit types take two dword slots) and call the stub's trampoline. Arity errors raise `TypeError` whether or not the stub is present. |
 
 The natives declared in the shipped registry are all in area `player`:
 `FindAndSetNewTarget(main, b_stone, exclude)`, `OnPressActor(main, vid,
@@ -605,21 +628,21 @@ The module also carries functions the api wraps directly (`actors`,
 `fishing_poll`, `key_event`, `field`, `set_field`). Prefer the api wrapper;
 reach `api.natives.module()` only when there is none.
 
-| Call | Semantics |
-|---|---|
-| `api.http_post(url, body, auth=None, content_type="text/csv") -> int` | Synchronous WinHTTP POST through the stub. Returns the HTTP status, or a negative sentinel (`-1` bad URL … `-8` no status header) when no request could be made. `auth` is the full `Authorization` header value. **Blocks the frame.** Raises if the native is absent. |
-| `api.fishing_poll() -> (seq, sub, bite, our_vid, fish_vnum, cast_seq)` | Counters the stub keeps from the fishing packets for our own character. `bite` is monotonic, so a 4 Hz poll cannot miss one. Raises if absent. |
-| `api.key_event(vk, scan, down) -> int` | Inject a keyboard event by scancode via `SendInput`, for keys the engine polls natively and never hands to Python. Hold across a tick for a real press. Raises if absent. |
+| Call                                                                   | Semantics                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.http_post(url, body, auth=None, content_type="text/csv") -> int`  | Synchronous WinHTTP POST through the stub. Returns the HTTP status, or a negative sentinel (`-1` bad URL … `-8` no status header) when no request could be made. `auth` is the full `Authorization` header value. **Blocks the frame.** Raises if the native is absent. |
+| `api.fishing_poll() -> (seq, sub, bite, our_vid, fish_vnum, cast_seq)` | Counters the stub keeps from the fishing packets for our own character. `bite` is monotonic, so a 4 Hz poll cannot miss one. Raises if absent.                                                                                                                          |
+| `api.key_event(vk, scan, down) -> int`                                 | Inject a keyboard event by scancode via `SendInput`, for keys the engine polls natively and never hands to Python. Hold across a tick for a real press. Raises if absent.                                                                                               |
 
 ### 4.12 Cross-client link
 
 `api.link` is a `Link`: filesystem IPC between clients on the same machine,
 keyed by **character name** (both clients run from one folder).
 
-| Call | Semantics |
-|---|---|
+| Call                                   | Semantics                                                           |
+| -------------------------------------- | ------------------------------------------------------------------- |
 | `api.link.publish(name, data) -> bool` | Write `_patcher\link\<name>.json` atomically (temp + `os.replace`). |
-| `api.link.read(name) -> dict | None` | The latest record, or `None` if missing or older than `Link.STALE_S` (6 s) by its `ts` field. |
+| `api.link.read(name) -> dict           | None`                                                               | The latest record, or `None` if missing or older than `Link.STALE_S` (6 s) by its `ts` field. |
 
 Sockets are not reliably importable here, so a file is the pragmatic channel.
 `follow` publishes name, channel, map, position and buff timers this way.
@@ -628,25 +651,25 @@ Sockets are not reliably importable here, so a file is the pragmatic channel.
 
 `api.py` v14 added semantic namespaces over both backends:
 
-| Namespace | Client modules behind it |
-|---|---|
-| `api.player` | `playerm2g2`, `skill`, `petskill` (curated layer: the `_Entity`) |
-| `api.world` | `pack_chr`, `chrmgr`, `nonplayer` |
-| `api.shop` | `shop`, `itemshop`, `m2netm2g` |
-| `api.market` | `offlineshop`, `shopSearch` |
-| `api.storage` | `safebox`, `cube`, `switchbot` |
-| `api.social` | `guild`, `messenger`, `whispermgr`, `chat` |
-| `api.session` | `app`, `m2netm2g`, `ServerStateChecker` |
-| `api.items` | `item` |
-| `api.map` | `background`, `fly` |
-| `api.ui` | declared over `wndMgr`, `grp`, `miniMap`, `render_manager` — **but see below** |
+| Namespace     | Client modules behind it                                                       |
+| ------------- | ------------------------------------------------------------------------------ |
+| `api.player`  | `playerm2g2`, `skill`, `petskill` (curated layer: the `_Entity`)               |
+| `api.world`   | `pack_chr`, `chrmgr`, `nonplayer`                                              |
+| `api.shop`    | `shop`, `itemshop`, `m2netm2g`                                                 |
+| `api.market`  | `offlineshop`, `shopSearch`                                                    |
+| `api.storage` | `safebox`, `cube`, `switchbot`                                                 |
+| `api.social`  | `guild`, `messenger`, `whispermgr`, `chat`                                     |
+| `api.session` | `app`, `m2netm2g`, `ServerStateChecker`                                        |
+| `api.items`   | `item`                                                                         |
+| `api.map`     | `background`, `fly`                                                            |
+| `api.ui`      | declared over `wndMgr`, `grp`, `miniMap`, `render_manager` — **but see below** |
 
 Attribute lookup on a namespace (`_Ns.__getattr__`) resolves, in order:
 
 1. **Curated `snake_case` helpers** — ours, stable across patches
    (`api.player.position()`).
 2. **Natives** from `natives.json` whose `area` matches (`api.player.
-   FindAndSetNewTarget(...)`). If a native's name also exists as a binding in
+FindAndSetNewTarget(...)`). If a native's name also exists as a binding in
    the area, the lookup **refuses** unless `_COLLISION_OVERRIDES` names a
    winner; a silent repoint of existing callers is treated as the worst
    possible outcome.
@@ -705,29 +728,42 @@ A `ui.json` looks like this (`mods/unstick/ui.json`):
   "title": "Unstick",
   "hint": "Sidesteps when auto-move wedges on a corner or a mob. Collision stays on.",
   "rows": [
-    {"type": "slider", "key": "STUCK_S", "label": "Stall before acting",
-                       "min": 0.5, "max": 10, "step": 0.5, "suffix": "s"},
-    {"type": "slider", "key": "SIDESTEP", "label": "Sidestep distance",
-                       "min": 300, "max": 3000, "step": 100},
-    {"type": "separator"},
-    {"type": "value",  "key": "NEAR_DIST", "label": "Arrived within"},
-    {"type": "checkbox", "key": "VERBOSE", "label": "Log every sidestep"},
-    {"type": "button", "label": "Revert", "action": "reset", "x": 10}
+    {
+      "type": "slider",
+      "key": "STUCK_S",
+      "label": "Stall before acting",
+      "min": 0.5,
+      "max": 10,
+      "step": 0.5,
+      "suffix": "s"
+    },
+    {
+      "type": "slider",
+      "key": "SIDESTEP",
+      "label": "Sidestep distance",
+      "min": 300,
+      "max": 3000,
+      "step": 100
+    },
+    { "type": "separator" },
+    { "type": "value", "key": "NEAR_DIST", "label": "Arrived within" },
+    { "type": "checkbox", "key": "VERBOSE", "label": "Log every sidestep" },
+    { "type": "button", "label": "Revert", "action": "reset", "x": 10 }
   ]
 }
 ```
 
 Row types (`_BUILDERS` in `uikit.py`):
 
-| `type` | Keys | Renders as | Emits |
-|---|---|---|---|
-| `label` | `text`, optional `color` (0xAARRGGBB int) | left-aligned text | — |
-| `separator` | — | a `ui.Line`, or a dashed text fallback | — |
-| `value` | `key`, `label` | label + read-only current value | — |
-| `checkbox` | `key`, `label` | check image + label, full-row hitbox | `(key, bool)` |
-| `edit` | `key`, `label`, `width` (120), `max_length` (32), `numeric` | text input over a background image | `(key, str)` on Return/Escape |
-| `slider` | `key`, `label`, `min`, `max`, `step`, `suffix` | slider + live readout | `(key, number)` rounded to `step`; integral values become `int` |
-| `button` | `label`, `action`, `x`, `width` | art-backed button, or text + hitbox fallback | `("__action__", action)` |
+| `type`      | Keys                                                        | Renders as                                   | Emits                                                           |
+| ----------- | ----------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------- |
+| `label`     | `text`, optional `color` (0xAARRGGBB int)                   | left-aligned text                            | —                                                               |
+| `separator` | —                                                           | a `ui.Line`, or a dashed text fallback       | —                                                               |
+| `value`     | `key`, `label`                                              | label + read-only current value              | —                                                               |
+| `checkbox`  | `key`, `label`                                              | check image + label, full-row hitbox         | `(key, bool)`                                                   |
+| `edit`      | `key`, `label`, `width` (120), `max_length` (32), `numeric` | text input over a background image           | `(key, str)` on Return/Escape                                   |
+| `slider`    | `key`, `label`, `min`, `max`, `step`, `suffix`              | slider + live readout                        | `(key, number)` rounded to `step`; integral values become `int` |
+| `button`    | `label`, `action`, `x`, `width`                             | art-backed button, or text + hitbox fallback | `("__action__", action)`                                        |
 
 `modui` understands the actions `save` and `reset`; anything else is logged
 as unknown. The `Enable <mod>` checkbox is injected by `modui` for every mod
@@ -756,16 +792,16 @@ This client talks to a live server with other players on it. The framework's
 boundaries are chosen so that a mod written against the api cannot easily
 become something else. The rules, and where they are enforced:
 
-| Rule | Where | Why |
-|---|---|---|
-| **No crafted, duplicated or malformed packets.** | `api.py` wraps no `m2netm2g` send functions; `SendChatPacket` has `area: null` in `natives.json` so it is unreachable through the namespaces. | Every action a mod takes goes through the client's own input paths (`AutoMoveToPosition`, `RequestUseLocalQuickSlot`, `PickCloseItemVector`, `__OnPressActor`), so what reaches the wire is byte-identical to a human doing it. |
-| **No terrain pass-through by default.** | `terrain_pass` is a separate switch; `nocollide` ships `NO_TERRAIN: false`, logs it in red in the UI, and always logs a change regardless of `VERBOSE`. | The client self-reports its x/y about 2.5 times a second. Walking through a monster is invisible to the server; standing where the map forbids is not, and an in-client legality dialog has already been observed. |
-| **Ownership is enforced natively.** | `pick_up_items` and the default `ground_items(mine_only=True)`. | The client keeps a drop only if its ownership string matches our own name; a mod cannot widen that, so it cannot take someone else's loot. |
-| **No metronomes.** | `autoloot` triggers on the kill edge and jitters its idle sweep; `follow` rate-limits `SetTarget`; `keeproute` and `entscan` bound their re-issue and sweep rates; `http_post` is documented as off-hot-path. | A perfectly periodic burst of identical packets is the signature of a macro and is noise the server does not need. |
-| **Stay out of the shipped autohunt's telemetry.** | `autohunt2` swallows `/auto_hunt` and blocks `miniMap.SetAutoHuntStatus`, and drives the client's own functions instead. | The server-side analytics key on that command and flag. |
-| **Fail loud on missing natives.** | `field`, `actor_pass`, `terrain_pass`, `http_post`, `fishing_poll`, `key_event` raise. | "Silently did nothing" and "off" must never be confused for a switch that changes what the character can walk through. |
-| **A broken mod cannot take the client down.** | `_call` fault counting, `pump`/`boot` never raise, stub-side backstop, `mods.off`. | See section 2.7. |
-| **Secrets never reach the log; nothing is shipped enabled with credentials.** | `_load_mod` redaction; `shoppos` ships `URL: ""` and is inert until configured. | `mods.log` gets copied around. |
+| Rule                                                                          | Where                                                                                                                                                                                                         | Why                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **No crafted, duplicated or malformed packets.**                              | `api.py` wraps no `m2netm2g` send functions; `SendChatPacket` has `area: null` in `natives.json` so it is unreachable through the namespaces.                                                                 | Every action a mod takes goes through the client's own input paths (`AutoMoveToPosition`, `RequestUseLocalQuickSlot`, `PickCloseItemVector`, `__OnPressActor`), so what reaches the wire is byte-identical to a human doing it. |
+| **No terrain pass-through by default.**                                       | `terrain_pass` is a separate switch; `nocollide` ships `NO_TERRAIN: false`, logs it in red in the UI, and always logs a change regardless of `VERBOSE`.                                                       | The client self-reports its x/y about 2.5 times a second. Walking through a monster is invisible to the server; standing where the map forbids is not, and an in-client legality dialog has already been observed.              |
+| **Ownership is enforced natively.**                                           | `pick_up_items` and the default `ground_items(mine_only=True)`.                                                                                                                                               | The client keeps a drop only if its ownership string matches our own name; a mod cannot widen that, so it cannot take someone else's loot.                                                                                      |
+| **No metronomes.**                                                            | `autoloot` triggers on the kill edge and jitters its idle sweep; `follow` rate-limits `SetTarget`; `keeproute` and `entscan` bound their re-issue and sweep rates; `http_post` is documented as off-hot-path. | A perfectly periodic burst of identical packets is the signature of a macro and is noise the server does not need.                                                                                                              |
+| **Stay out of the shipped autohunt's telemetry.**                             | `autohunt2` swallows `/auto_hunt` and blocks `miniMap.SetAutoHuntStatus`, and drives the client's own functions instead.                                                                                      | The server-side analytics key on that command and flag.                                                                                                                                                                         |
+| **Fail loud on missing natives.**                                             | `field`, `actor_pass`, `terrain_pass`, `http_post`, `fishing_poll`, `key_event` raise.                                                                                                                        | "Silently did nothing" and "off" must never be confused for a switch that changes what the character can walk through.                                                                                                          |
+| **A broken mod cannot take the client down.**                                 | `_call` fault counting, `pump`/`boot` never raise, stub-side backstop, `mods.off`.                                                                                                                            | See section 2.7.                                                                                                                                                                                                                |
+| **Secrets never reach the log; nothing is shipped enabled with credentials.** | `_load_mod` redaction; `shoppos` ships `URL: ""` and is inert until configured.                                                                                                                               | `mods.log` gets copied around.                                                                                                                                                                                                  |
 
 `CAPABILITIES` is recorded, not enforced. The façade is a convention with
 teeth in the api's shape, not a sandbox: a mod can reach `sys.modules`
@@ -857,11 +893,27 @@ ignored` — that line is your spell-checker. Save the file **without a BOM**.
   "title": "Hello",
   "hint": "Greets you on a timer. A demonstration mod.",
   "rows": [
-    {"type": "edit",     "key": "GREETING", "label": "Greeting", "max_length": 40},
-    {"type": "slider",   "key": "INTERVAL", "label": "Every",
-                         "min": 2, "max": 60, "step": 1, "suffix": "s"},
-    {"type": "checkbox", "key": "SAY_IN_CHAT", "label": "Also say it in chat"},
-    {"type": "button",   "label": "Revert", "action": "reset", "x": 10}
+    {
+      "type": "edit",
+      "key": "GREETING",
+      "label": "Greeting",
+      "max_length": 40
+    },
+    {
+      "type": "slider",
+      "key": "INTERVAL",
+      "label": "Every",
+      "min": 2,
+      "max": 60,
+      "step": 1,
+      "suffix": "s"
+    },
+    {
+      "type": "checkbox",
+      "key": "SAY_IN_CHAT",
+      "label": "Also say it in chat"
+    },
+    { "type": "button", "label": "Revert", "action": "reset", "x": 10 }
   ]
 }
 ```
@@ -943,7 +995,7 @@ one before the next.
    error?
 3. **`import traceback`** at the top of `main.py`. The mod fails to load —
    find the line and the traceback beneath it. Section 1.4 says which modules
-   *are* importable; pick one from the resident list and confirm that one
+   _are_ importable; pick one from the resident list and confirm that one
    loads.
 4. **Rename `on_update` to `on_tick`.** Nothing fails: the mod loads, logs its
    greeting, and never greets again, because the host looks up three names
@@ -951,7 +1003,7 @@ one before the next.
    in the framework, and the one to remember when a mod "loads but does
    nothing".
 
-Then break the *stub* side, once, with the client stopped: rename
+Then break the _stub_ side, once, with the client stopped: rename
 `uriel_natives.ini` and start the client. `hello` needs no natives and keeps
 working; `apidiag` (enable it in a profile) reports the module as `None`, and
 `uriel_stub.log` says `NATIVE: no uriel_natives.ini - gateway disabled (this
@@ -961,23 +1013,23 @@ is fine)` — the silent failure document 03 is built around. Put the file back.
 
 ## 8. Troubleshooting
 
-| Symptom | Where to look | Likely cause |
-|---|---|---|
-| Nothing in `mods.log` at all | `_patcher\uriel_stub.log` | `MODS: mods.off present` (kill switch), `bootstrap failed 5 times`, or `status: FAILED ...` from the Python bootstrap. If the status says `kwargs-FAIL`, `open()` rejects keywords — expected; if it says `write-FAIL`, the log path is not writable. |
-| `mod host up` but my mod is not listed | `mods.log` around boot | Folder name starts with `.`/`_`, no `main.py`, or `mod 'x' disabled by config`. |
-| `mod 'x' failed to load` + traceback | the traceback | Usually an import of a non-resident module, or a syntax error. Fix the file; the host retries only when the mtime changes. |
-| `mod 'x' disabled after 5 consecutive faults` | the five preceding tracebacks | An exception in `on_update`. Fix, save, and the reload restarts the count. |
-| `config key 'K' matches nothing - ignored` | your `main.py` | Misspelt key, or no module-level constant of that name. |
-| Setting changed in F10 but behaviour unchanged | `mods.log` | Save not pressed; or the mod copies the constant elsewhere at load; or a profile overrides it (look for the `profile:` line). |
-| `config changed - reloading mods` every second | `mods.log` | `config.json` or a profile is invalid — usually a UTF-8 BOM (section 2.9). The preceding `is invalid` line has the parse error. |
-| My `ENABLED = False` mod runs anyway | section 2.2 | `enabled` is consumed by the host, never injected. Set it in `config.json`; `on_unload` is the off switch. |
-| `AttributeError: api.player has no 'auto_move_active'` | section 4.10 | Fields are read with `api.field("...")`. |
-| `field(...) needs triarch_native - check uriel_stub.log` | `NATIVE:` lines in `uriel_stub.log` | Gateway not registered (no `uriel_natives.ini`, or resolution failed) — or you called too early; it registers a second or two into the run, so retry rather than caching the failure. |
-| `... is not in this client's field table` | `uriel_stub.log` | The `.ini` was regenerated under a running client. It is read once at DLL load: **restart the client**. |
-| `this stub has no <native>` / `actor_pass ignored the exclude range` | stub version | The DLL predates that native or band support. Rebuild, redeploy, restart. |
-| `SetTarget` "succeeds" but the target does not change | section 4.5 | The phase-window second argument is required (`api.set_target` does it). A stale selection needs `clear_target` → `select` → `set_target`. |
-| `position()` is `None` / `api.chat` returns `False` in the world | phase | Between maps, the `(-100,-100,-100)` sentinel, or the chat window does not exist yet. Return early and retry next pump. |
-| `api.ui is None` / `uikit: <row> failed` | boot lines / the row spec | `uikit.py` missing or failed to load (traceback in the log); or a widget class this build lacks — the row degrades, not fatal. |
-| The manager window never appears | `modui:` lines | `GameWindow has no OnKeyDown - key handling is native` means F10 cannot be bound; set `OPEN_ON_START: true`. |
-| Editing `modhost.py` changes nothing | section 2.6 | It does not hot-reload. Restart the client. |
-| `triarch_native` is `None` inside `on_load`, fine a moment later | The host's first tick can run before the stub registers the module (82 ms apart on a measured boot). | Touch natives from `on_update`, not `on_load`; or reload the mod once. |
+| Symptom                                                              | Where to look                                                                                        | Likely cause                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nothing in `mods.log` at all                                         | `_patcher\uriel_stub.log`                                                                            | `MODS: mods.off present` (kill switch), `bootstrap failed 5 times`, or `status: FAILED ...` from the Python bootstrap. If the status says `kwargs-FAIL`, `open()` rejects keywords — expected; if it says `write-FAIL`, the log path is not writable. |
+| `mod host up` but my mod is not listed                               | `mods.log` around boot                                                                               | Folder name starts with `.`/`_`, no `main.py`, or `mod 'x' disabled by config`.                                                                                                                                                                       |
+| `mod 'x' failed to load` + traceback                                 | the traceback                                                                                        | Usually an import of a non-resident module, or a syntax error. Fix the file; the host retries only when the mtime changes.                                                                                                                            |
+| `mod 'x' disabled after 5 consecutive faults`                        | the five preceding tracebacks                                                                        | An exception in `on_update`. Fix, save, and the reload restarts the count.                                                                                                                                                                            |
+| `config key 'K' matches nothing - ignored`                           | your `main.py`                                                                                       | Misspelt key, or no module-level constant of that name.                                                                                                                                                                                               |
+| Setting changed in F10 but behaviour unchanged                       | `mods.log`                                                                                           | Save not pressed; or the mod copies the constant elsewhere at load; or a profile overrides it (look for the `profile:` line).                                                                                                                         |
+| `config changed - reloading mods` every second                       | `mods.log`                                                                                           | `config.json` or a profile is invalid — usually a UTF-8 BOM (section 2.9). The preceding `is invalid` line has the parse error.                                                                                                                       |
+| My `ENABLED = False` mod runs anyway                                 | section 2.2                                                                                          | `enabled` is consumed by the host, never injected. Set it in `config.json`; `on_unload` is the off switch.                                                                                                                                            |
+| `AttributeError: api.player has no 'auto_move_active'`               | section 4.10                                                                                         | Fields are read with `api.field("...")`.                                                                                                                                                                                                              |
+| `field(...) needs triarch_native - check uriel_stub.log`             | `NATIVE:` lines in `uriel_stub.log`                                                                  | Gateway not registered (no `uriel_natives.ini`, or resolution failed) — or you called too early; it registers a second or two into the run, so retry rather than caching the failure.                                                                 |
+| `... is not in this client's field table`                            | `uriel_stub.log`                                                                                     | The `.ini` was regenerated under a running client. It is read once at DLL load: **restart the client**.                                                                                                                                               |
+| `this stub has no <native>` / `actor_pass ignored the exclude range` | stub version                                                                                         | The DLL predates that native or band support. Rebuild, redeploy, restart.                                                                                                                                                                             |
+| `SetTarget` "succeeds" but the target does not change                | section 4.5                                                                                          | The phase-window second argument is required (`api.set_target` does it). A stale selection needs `clear_target` → `select` → `set_target`.                                                                                                            |
+| `position()` is `None` / `api.chat` returns `False` in the world     | phase                                                                                                | Between maps, the `(-100,-100,-100)` sentinel, or the chat window does not exist yet. Return early and retry next pump.                                                                                                                               |
+| `api.ui is None` / `uikit: <row> failed`                             | boot lines / the row spec                                                                            | `uikit.py` missing or failed to load (traceback in the log); or a widget class this build lacks — the row degrades, not fatal.                                                                                                                        |
+| The manager window never appears                                     | `modui:` lines                                                                                       | `GameWindow has no OnKeyDown - key handling is native` means F10 cannot be bound; set `OPEN_ON_START: true`.                                                                                                                                          |
+| Editing `modhost.py` changes nothing                                 | section 2.6                                                                                          | It does not hot-reload. Restart the client.                                                                                                                                                                                                           |
+| `triarch_native` is `None` inside `on_load`, fine a moment later     | The host's first tick can run before the stub registers the module (82 ms apart on a measured boot). | Touch natives from `on_update`, not `on_load`; or reload the mod once.                                                                                                                                                                                |

@@ -1,9 +1,8 @@
 # 00b — How a Metin2 client works
 
 Read this before the step-by-step documents. Everything the toolkit does
-(the unpacker, the offset resolver, the stub, the mod host) is a move against
-one specific piece of this picture, and the picture is the same for every
-game in the Metin2 family.
+(the unpacker, the offset resolver, the stub, the mod host) targets one
+specific component which is the same for every game in the Metin2 family.
 
 ## Contents
 
@@ -20,20 +19,20 @@ game in the Metin2 family.
 ## Where these clients come from
 
 Metin2 is a 2004 Korean MMORPG whose client and server source became public
-many years ago. Almost every private server, and every modernised client
-built for one, descends from that code. The class names survive
+many years ago. Almost every private server, and modernised client
+built them, descend from that code. The class names survive
 (`CPythonApplication`, `CPythonNetworkStream`, `CInstanceBase`,
 `CActorInstance`, `EterPack`), and so does the architecture: a C++ engine
 that embeds a Python interpreter and hands it the game logic and the whole
 user interface.
 
-The client this repository studies is one such descendant, heavily updated:
+The client this repository studies is one such descendant, that has been heavily updated:
 the renderer is bgfx rather than the original Direct3D 8, the embedded
 interpreter is CPython 3.14 rather than Python 2.2, the Python scripts are
 compiled with Cython instead of shipped as source, the network layer uses
 XTEA and protocol buffers, and a commercial anti-cheat wraps the executable.
-None of that changes the shape below. It changes how hard each part is to
-see, which is what the rest of the documents are about.
+None of that changes the architecture below. They only change how hard each part is to
+see and reverse engineer, which is what the rest of the documents are about.
 
 ## The process, from the launcher to the game
 
@@ -52,17 +51,16 @@ triarch.exe --game           the client proper (32-bit Windows, ~97 MB)
 The important consequence for reverse engineering: `triarch.exe` as it sits
 on disk is not a runnable program. Its code section is encrypted, its import
 table names one DLL, and its entry point lands in a block of NOPs. Document
-01 describes those four changes; document 02 undoes them without running
-anything.
+01 describes those four changes; Document 02 reverts them without execution.
 
 ## Inside the executable: C++ engine plus embedded Python
 
 Two worlds share one process:
 
-| world | written in | responsible for |
-|---|---|---|
-| **engine** | C++ | the window, the frame loop, rendering (bgfx), the virtual file system over pack files, networking, the entity model (actors, items, effects), pathfinding and collision, sound (Miles), animation (Granny), trees (SpeedTree), crash reporting (Sentry) |
-| **game layer** | Python, running inside the engine's embedded CPython | login and character-select screens, every window of the in-game UI, inventory and shop logic, skill bars, chat, quest dialogs, the glue that turns a button click into a packet |
+| world          | written in                                           | responsible for                                                                                                                                                                                                                                         |
+| -------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **engine**     | C++                                                  | the window, the frame loop, rendering (bgfx), the virtual file system over pack files, networking, the entity model (actors, items, effects), pathfinding and collision, sound (Miles), animation (Granny), trees (SpeedTree), crash reporting (Sentry) |
+| **game layer** | Python, running inside the engine's embedded CPython | login and character-select screens, every window of the in-game UI, inventory and shop logic, skill bars, chat, quest dialogs, the glue that turns a button click into a packet                                                                         |
 
 The engine creates the interpreter at start-up, registers its own modules
 into it, and then imports a root script that builds the UI. From that point
@@ -73,10 +71,10 @@ event and every frame.
 The Python side is not shipped as `.py` files. Some 516 modules are
 compiled with Cython into native code and registered as built-in modules,
 so `import uiinventory` resolves to C++ code that Cython generated from the
-original script. The names of every function, class and variable survive in
-that code, which is why string searches remain so productive on this
+original script. The names of every function, class and variable are preserved in
+that code, which is why string searches remain so effective on this
 client. A fallback loader can still import plain `.py`/`.pyc` files from the
-pack root, and that loader is the door the mod host walks through (document
+pack root, and that loader is vulnerability the mod host uses (document
 05).
 
 ## The binding tables: where C++ meets Python
@@ -102,8 +100,8 @@ binary:
   which makes the engine method one hop away.
 
 Document 04 shows how the offset resolver walks these tables to find
-functions and struct offsets without ever writing an address down, and
-document 05 shows the stub registering a table of its own
+functions and struct offsets without ever saving any of the addresses, and
+Document 05 shows the stub registering a table of its own
 (`triarch_native`) to hand mods new functions.
 
 ## One thread, one frame loop
@@ -134,14 +132,14 @@ identified by a **VID** (a 32-bit "virtual id" the server assigns). The
 client keeps them in a manager keyed by VID:
 
 - **Actors** (`CInstanceBase`, and the animated `CActorInstance` under it):
-  players, monsters, NPCs, guards, pets, and *metin stones* (the
+  players, monsters, NPCs, guards, pets, and _metin stones_ (the
   destructible rocks the game is named after). Each carries a race number
   (which model), a type (player, monster, NPC, stone...), a position, a
   state such as "walking" or "attacking", and per-actor flags such as
   collision.
 - **The player** is one actor singled out into a singleton (`CPythonPlayer`)
   that also knows inventory, skills, target, auto-move destination and the
-  rest of what only *you* have.
+  rest of what only _you_ have.
 - **Ground items** are a separate manager: item vnum (the item type number),
   position, owner, and the VID the server gave the drop.
 - **Maps** are tiles with a height field and an attribute layer (which cells
@@ -149,7 +147,7 @@ client keeps them in a manager keyed by VID:
   several **channels**: identical copies on different game-server
   processes, chosen at login and switchable in game.
 
-Almost every mod in document 07 is a loop over one of these managers:
+Almost every mod in Document 07 is a loop over one of these managers:
 "nearest monster of race X", "any ground item worth picking up", "am I
 still walking".
 
@@ -170,7 +168,7 @@ still in the binary as strings. Every packet on the wire is encrypted with a
 session key (XTEA in this fork) and carries a sequence byte, so a replayed
 or invented packet is detectable.
 
-The stub hooks the receive and send paths (document 05) to observe traffic,
+The stub hooks the receive and send paths (Document 05) to observe traffic,
 and our framework deliberately exposes no way to build a packet by hand.
 The server side logs what it sees, and a malformed packet from a real
 account is a fingerprint. Nothing in this repository sends anything the
@@ -192,17 +190,17 @@ running client, and the stub and mods work on the running client.
 
 ## Where the toolkit plugs in
 
-| client part | what it is | what this project does with it | document |
-|---|---|---|---|
-| `client_x86.dll` import | the anti-cheat, loaded before the game | replaced by `uriel_stub.dll`, which answers the one call the game makes into it | 02, 05 |
-| `.text` encryption | one 4096-byte key tiled over ~17,000 pages | recovered from ciphertext statistics | 02 |
-| on-disk import table | left in place, names XORed with the same key | decoded and rebuilt into a normal import directory | 02 |
-| entry point | redirected into a NOP sled | found again by the CRT start-up shape | 02 |
-| `PyMethodDef` tables | name/function pairs for every Python module | the anchors for the offset resolver; the model for the stub's own module | 04, 05 |
-| per-frame slot the anti-cheat is called through | the heartbeat | where the stub runs the mod host | 05 |
-| embedded CPython + fallback loader | runs the game's UI | runs `modhost.py` and the mods | 05, 06 |
-| entity managers, player singleton | the world as the server describes it | the `api` namespaces mods read | 06 |
-| send/receive paths | the protocol | observed, never forged | 05 |
+| client part                                     | what it is                                   | what this project does with it                                                  | document |
+| ----------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------- | -------- |
+| `client_x86.dll` import                         | the anti-cheat, loaded before the game       | replaced by `uriel_stub.dll`, which answers the one call the game makes into it | 02, 05   |
+| `.text` encryption                              | one 4096-byte key tiled over ~17,000 pages   | recovered from ciphertext statistics                                            | 02       |
+| on-disk import table                            | left in place, names XORed with the same key | decoded and rebuilt into a normal import directory                              | 02       |
+| entry point                                     | redirected into a NOP sled                   | found again by the CRT start-up shape                                           | 02       |
+| `PyMethodDef` tables                            | name/function pairs for every Python module  | the anchors for the offset resolver; the model for the stub's own module        | 04, 05   |
+| per-frame slot the anti-cheat is called through | the heartbeat                                | where the stub runs the mod host                                                | 05       |
+| embedded CPython + fallback loader              | runs the game's UI                           | runs `modhost.py` and the mods                                                  | 05, 06   |
+| entity managers, player singleton               | the world as the server describes it         | the `api` namespaces mods read                                                  | 06       |
+| send/receive paths                              | the protocol                                 | observed, never forged                                                          | 05       |
 
 If one sentence has to carry this document: **the client is a C++ engine
 that embeds Python and publishes its own API to it through tables in a data

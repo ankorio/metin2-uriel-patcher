@@ -4,7 +4,7 @@ Short definitions, in the sense the other documents use them. Alphabetical.
 
 **Anchor.** Something stable across builds that a resolver starts from: a
 string literal, an imported function, a Python method name in a table, an
-instruction shape. Addresses are derived *from* anchors, never written down.
+instruction shape. Addresses are derived _from_ anchors, never written down.
 
 **ASLR (address space layout randomisation).** The loader may map an image at
 a different base address each run. The rebuild clears the flag so the client
@@ -52,11 +52,11 @@ points it back at the CRT entry.
 final address and may name the import after the wrong DLL; the on-disk table
 has the original name.
 
-**Gateway native.** See *Native*.
+**Gateway native.** See _Native_.
 
 **Hint/name entry.** In a normal import table, a 16-bit hint followed by the
 NUL-terminated function name. Uriel keeps the entries but stores the name
-*length* in the hint word and XORs the name bytes.
+_length_ in the hint word and XORs the name bytes.
 
 **Hot reload.** The mod host watches `mods/` and re-imports a mod when its
 file changes. `modhost.py` itself is exempt because it is the watcher.
@@ -72,13 +72,13 @@ The part Uriel actually removes.
 **Int3 padding.** The `0xCC` (`int3`) bytes MSVC places between functions.
 `func_start()` walks back to a `CC CC` run to find where a function begins,
 `find_oep()` requires one before the entry, and their sheer frequency in
-code is one reason the many-time pad breaks.
+code is one reason the repeated-key XOR breaks.
 
 **Keystream.** The 4096 bytes XORed over every page of `.text`. Recovered
 from ciphertext alone because it is reused.
 
-**Many-time pad.** A one-time pad whose key is reused. Reuse turns the
-cipher into a substitution per key position, which statistics break.
+**Repeted-key XOR.** A XOR cipher with key lenght much smaller then the lenght of message. This turns the
+cipher into a substitution per key position, due to this reason statistics break.
 
 **Metin stone.** A large stationary monster object (race 8005 on the
 reference server) that spawns mobs while it is attacked. The `hunt_stones`
@@ -105,7 +105,7 @@ in it slides to the end. Uriel fills its injected section with one and the
 protector's DLL patches a jump into it at runtime; on disk it is all `90`.
 
 **OEP (original entry point).** The entry point before the protector moved
-it. See *entry point*.
+it. See _entry point_.
 
 **Offset resolver.** One method of `tools/mkoffsets.py` that turns an anchor
 into an address on the build in front of it.
@@ -151,11 +151,11 @@ own permissions.
 
 **Singleton / holder.** The engine keeps one instance of each manager class
 (`CPythonPlayer`, `CPythonCharacterManager`, `CPythonItem`, ...) behind a
-global pointer, the *holder*. The ini names holder addresses (`kPlayerInst`,
+global pointer, the _holder_. The ini names holder addresses (`kPlayerInst`,
 `kItemInst`); the object is `**(holder)`, looked up per call and never cached,
 because it does not exist on the login and character-select screens.
 
-**Stub function.** See *Native*.
+**Stub function.** See _Native_.
 
 **Stub (uriel_stub.dll).** The DLL that takes the anti-cheat's place. The
 rebuilt exe imports it under the protector's old entry name, so the one call
@@ -182,7 +182,7 @@ character the client can see — players, mobs, NPCs. Bindings and stub
 functions identify actors by it (`SetTarget(vid)`, `actor_at(i)` returns a
 VID, the auto-attack target is a VID). It changes on respawn and reconnect.
 
-**Vnum (virtual number).** The id of an item or mob *type* in the server's
+**Vnum (virtual number).** The id of an item or mob _type_ in the server's
 data tables — an item vnum, a mob vnum. Stable across sessions and servers
 where names are localised, which is why configs prefer vnums to names.
 
@@ -198,20 +198,20 @@ them. These are the ones that occur, with what each means in this project.
 `imm32` an absolute 32-bit value, `disp32` a 32-bit displacement added to a
 register.
 
-| Bytes | Instruction | Where it appears here |
-|---|---|---|
-| `E8 rel32` | `call rel32` — call, target = next instruction + rel32 | the CRT entry's first instruction; `callers()` and `_fn_calls()`; the OEP finder's pass over `.text` |
-| `E9 rel32` | `jmp rel32` | the CRT entry's second instruction; the five-byte detour the stub writes over a hooked prologue |
-| `FF 15 imm32` | `call dword ptr [imm32]` — call through a pointer slot | every call through the IAT; `iat_callers()`; the protector call sites `rebuild` rewrites |
-| `FF 25 imm32` | `jmp dword ptr [imm32]` | the other IAT form (tail calls into an import) |
-| `68 imm32` | `push imm32` | pushing a string literal's address — the string cross-reference anchor (`pushes_of`) |
-| `A1 imm32` | `mov eax, [imm32]` | reading a singleton holder (`kPlayerInst`, `kMiniMapInst`, `kItemInst`) |
-| `8B 81 disp32` | `mov eax, [ecx+disp32]` | reading a member off `this`; the `block_movement()` shape — the disp32 *is* the struct offset |
-| `C7 81 disp32 imm32` | `mov dword ptr [ecx+disp32], imm32` | writing a constant into a member: the `skip_collision()` sentinels `0xA35F5` / `0xF35F5` |
-| `C2 imm16` | `ret imm16` — return and pop imm16 bytes | the callee-cleans conventions; `ret_imm()`'s cross-check of a native's stack width; `SLOT2_ARG_BYTES` |
-| `C3` | `ret` | a `cdecl` return; `terrain_pass` writes one over `BlockMovement`'s first byte |
-| `CC` | `int3` | function padding; `func_start()` and `find_oep()` rely on it |
-| `55 8B EC` | `push ebp; mov ebp, esp` | the ordinary MSVC prologue (figure 5 in document 02; `kNetPrologue` starts with it) |
-| `53 8B DC` | `push ebx; mov ebx, esp` | the stack-aligned prologue; the auth functions and `RecvOfflineshopPacket` open with it |
-| `89 0D imm32` | `mov [imm32], ecx` | the single store to `__security_cookie` that identifies `__security_init_cookie` |
-| `90` | `nop` | the NOP sled in the injected section |
+| Bytes                | Instruction                                            | Where it appears here                                                                                 |
+| -------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `E8 rel32`           | `call rel32` — call, target = next instruction + rel32 | the CRT entry's first instruction; `callers()` and `_fn_calls()`; the OEP finder's pass over `.text`  |
+| `E9 rel32`           | `jmp rel32`                                            | the CRT entry's second instruction; the five-byte detour the stub writes over a hooked prologue       |
+| `FF 15 imm32`        | `call dword ptr [imm32]` — call through a pointer slot | every call through the IAT; `iat_callers()`; the protector call sites `rebuild` rewrites              |
+| `FF 25 imm32`        | `jmp dword ptr [imm32]`                                | the other IAT form (tail calls into an import)                                                        |
+| `68 imm32`           | `push imm32`                                           | pushing a string literal's address — the string cross-reference anchor (`pushes_of`)                  |
+| `A1 imm32`           | `mov eax, [imm32]`                                     | reading a singleton holder (`kPlayerInst`, `kMiniMapInst`, `kItemInst`)                               |
+| `8B 81 disp32`       | `mov eax, [ecx+disp32]`                                | reading a member off `this`; the `block_movement()` shape — the disp32 _is_ the struct offset         |
+| `C7 81 disp32 imm32` | `mov dword ptr [ecx+disp32], imm32`                    | writing a constant into a member: the `skip_collision()` sentinels `0xA35F5` / `0xF35F5`              |
+| `C2 imm16`           | `ret imm16` — return and pop imm16 bytes               | the callee-cleans conventions; `ret_imm()`'s cross-check of a native's stack width; `SLOT2_ARG_BYTES` |
+| `C3`                 | `ret`                                                  | a `cdecl` return; `terrain_pass` writes one over `BlockMovement`'s first byte                         |
+| `CC`                 | `int3`                                                 | function padding; `func_start()` and `find_oep()` rely on it                                          |
+| `55 8B EC`           | `push ebp; mov ebp, esp`                               | the ordinary MSVC prologue (figure 5 in document 02; `kNetPrologue` starts with it)                   |
+| `53 8B DC`           | `push ebx; mov ebx, esp`                               | the stack-aligned prologue; the auth functions and `RecvOfflineshopPacket` open with it               |
+| `89 0D imm32`        | `mov [imm32], ecx`                                     | the single store to `__security_cookie` that identifies `__security_init_cookie`                      |
+| `90`                 | `nop`                                                  | the NOP sled in the injected section                                                                  |

@@ -1,0 +1,112 @@
+{
+  "title": "Orc farmer",
+  "hint": "One switch for an Orc-drop farm: it runs the autohunt2 and autoloot engines with the Orc filters already set. Turn OFF plain Auto hunt and Auto loot before using it - one or the other, never both. Every listed item is scanned for, marked on the atlas and walked to.",
+  "rows": [
+    {
+      "type": "value",
+      "key": "ORC_RACES",
+      "label": "Mobs (name match)"
+    },
+    {
+      "type": "value",
+      "key": "ORC_NAMES",
+      "label": "Loot taken"
+    },
+    {
+      "type": "value",
+      "key": "ORC_VNUMS",
+      "label": "Loot vnums (measured)"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "type": "checkbox",
+      "key": "BLADE_RADAR",
+      "label": "Announce + map the loot"
+    },
+    {
+      "type": "checkbox",
+      "key": "TAKE_OTHERS",
+      "label": "Go for other players' drops"
+    },
+    {
+      "type": "slider",
+      "key": "CAMP_S",
+      "label": "...wait one out for",
+      "min": 0,
+      "max": 120,
+      "step": 5,
+      "suffix": "s"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "type": "checkbox",
+      "key": "HUNT_ANYTHING_WHEN_NONE",
+      "label": "Hunt anything when no Orcs around"
+    },
+    {
+      "type": "slider",
+      "key": "BLANK_S",
+      "label": "...after none in range for",
+      "min": 2,
+      "max": 60,
+      "step": 1,
+      "suffix": "s"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "type": "checkbox",
+      "key": "TAKE_MONEY",
+      "label": "Also pick up yang"
+    },
+    {
+      "type": "checkbox",
+      "key": "LEARN_DROPS",
+      "label": "Count which race drops it"
+    },
+    {
+      "type": "slider",
+      "key": "SEEK_RANGE",
+      "label": "Walk up to",
+      "min": 2000,
+      "max": 20000,
+      "step": 1000,
+      "suffix": "u"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "type": "value",
+      "key": "IGNORE_PLAYERS",
+      "label": "Own alts (not competition)"
+    },
+    {
+      "type": "checkbox",
+      "key": "VERBOSE",
+      "label": "Log what it decided"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "type": "label",
+      "text": "Start and stop it with the game's own"
+    },
+    {
+      "type": "label",
+      "text": "autohunt button - same engine, same trigger."
+    },
+    {
+      "type": "button",
+      "label": "Revert",
+      "action": "reset",
+      "x": 10
+    }
+  ]
+}

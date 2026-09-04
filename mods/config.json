@@ -42,10 +42,7 @@
     "enabled": false,
     "NO_TERRAIN": false,
     "VERBOSE": true,
-    "SOLID_RACES": [
-      8000,
-      8999
-    ],
+    "SOLID_RACES": [8000, 8999],
     "ONLY_ON_WAYPOINT": true,
     "DEBUG": false,
     "WALK_STATE": 138
@@ -95,5 +92,29 @@
   },
   "uispy": {
     "enabled": false
+  },
+  "autodonatexp": {
+    "enabled": false,
+    "ARMED": false,
+    "ONLY_CHARACTER": ""
+  },
+  "automonkey": {
+    "enabled": false,
+    "ONLY_CHARACTER": ""
+  },
+  "autotrade": {
+    "enabled": false,
+    "GIVE_NOTHING": true
+  },
+  "bossscanner": {
+    "enabled": false
+  },
+  "orcfarmer": {
+    "enabled": false,
+    "IGNORE_PLAYERS": []
+  },
+  "ribfarmer": {
+    "enabled": false,
+    "IGNORE_PLAYERS": []
   }
 }

@@ -8,12 +8,8 @@
     "HUNT_RANGE": 300.0,
     "USE_SKILLS": true,
     "SKILLS_WHILE_MOUNTED": false,
-    "BOSS_RACES": [
-      1093
-    ],
-    "METIN_RACES": [
-      8005
-    ],
+    "BOSS_RACES": [1093],
+    "METIN_RACES": [8005],
     "TRASH_RACES": [],
     "TRASH_RANGE": 3000.0,
     "ONLY_BOSSES": false,
@@ -62,10 +58,7 @@
     "SPAM_INTERVAL": 0.5,
     "TAKE_ITEMS": true,
     "TAKE_MONEY": true,
-    "WANTED": [
-      "Sword",
-      27610
-    ],
+    "WANTED": ["Sword", 27610],
     "NAME_MIN_LEN": 4,
     "IGNORED_LOGGED": true,
     "SET_CLIENT_FLAG": true,
@@ -98,10 +91,7 @@
     "USEFISH_MAX": 4,
     "SKIP_JUNK": true,
     "USE_BAIT": true,
-    "BAIT_VNUMS": [
-      27802,
-      27801
-    ],
+    "BAIT_VNUMS": [27802, 27801],
     "FAIL_LIMIT": 4,
     "FAIL_BACKOFF": 20.0,
     "STUDY_LOG": true,
@@ -117,16 +107,8 @@
     "FOLLOW_DIST": 900.0,
     "FOLLOW_CHANNEL": false,
     "TARGET_MAIN": true,
-    "BUFF_SLOTS": [
-      0,
-      1,
-      2
-    ],
-    "BUFF_AFFECTS": [
-      94,
-      95,
-      96
-    ],
+    "BUFF_SLOTS": [0, 1, 2],
+    "BUFF_AFFECTS": [94, 95, 96],
     "BUFF_REFRESH_AT": 15.0,
     "BUFF_GAP": 2.5
   },
@@ -163,10 +145,7 @@
   "nocollide": {
     "enabled": false,
     "NO_TERRAIN": false,
-    "SOLID_RACES": [
-      8000,
-      8999
-    ],
+    "SOLID_RACES": [8000, 8999],
     "ONLY_ON_WAYPOINT": true,
     "WALK_STATE": 138,
     "DEBUG": false,

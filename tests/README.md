@@ -17,13 +17,13 @@ default 600 pages of `.text`) that has the **on-disk layout** documented in
 [docs/01](../docs/01-how-uriel-protects-the-client.md) and
 [docs/02](../docs/02-unpacking-offline.md):
 
-| part | what it reproduces |
-|---|---|
-| `.text` | pseudo-x86 with an x86-like byte distribution (about 12% `0x00`, `CC` padding between functions, `55 8B EC` prologues, `C3`/`C2 imm16` returns, `E8 rel32` calls to in-image functions, `68 imm32` pushes, `FF 15` calls through the IAT, vtable calls), XORed with one random 4096-byte key tiled per page; `IMAGE_SCN_MEM_EXECUTE` cleared |
-| the CRT entry | `CC`, then `E8 <__security_init_cookie> E9 <__scrt_common_main_seh>`: the callee holds the single `89 0D <cookie>` store and is called exactly once, the jmp target is never called, the entry itself is never a target — the shape `find_oep` keys on |
-| `.rdata` | the original IAT (data directory 12, at the start of the section): one NUL-terminated thunk array per DLL in the linker's sorted order, named slots pointing at hint/name entries whose "hint" word is the name **length** and whose bytes are `name[i] ^ key[i]`; ordinal slots as `0x80000000 | n`; a load config directory (data directory 10) whose `SecurityCookie` (+0x3C) points into `.data` |
-| `.data`, `.reloc` | the cookie global; a real relocation table covering every absolute `imm32` in `.text` |
-| injected section | random three-letter name, RWX, NOP sled with `AddressOfEntryPoint` pointing at it, and the replacement import directory (data directory 1): one descriptor importing `FireInTheHole` from `client_x86.dll` with plain names, `FirstThunk` pointing back at the original `client_x86` slot in `.rdata` |
+| part              | what it reproduces                                                                                                                                                                                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.text`           | pseudo-x86 with an x86-like byte distribution (about 12% `0x00`, `CC` padding between functions, `55 8B EC` prologues, `C3`/`C2 imm16` returns, `E8 rel32` calls to in-image functions, `68 imm32` pushes, `FF 15` calls through the IAT, vtable calls), XORed with one random 4096-byte key tiled per page; `IMAGE_SCN_MEM_EXECUTE` cleared |
+| the CRT entry     | `CC`, then `E8 <__security_init_cookie> E9 <__scrt_common_main_seh>`: the callee holds the single `89 0D <cookie>` store and is called exactly once, the jmp target is never called, the entry itself is never a target — the shape `find_oep` keys on                                                                                       |
+| `.rdata`          | the original IAT (data directory 12, at the start of the section): one NUL-terminated thunk array per DLL in the linker's sorted order, named slots pointing at hint/name entries whose "hint" word is the name **length** and whose bytes are `name[i] ^ key[i]`; ordinal slots as `0x80000000                                              | n`; a load config directory (data directory 10) whose `SecurityCookie`(+0x3C) points into`.data` |
+| `.data`, `.reloc` | the cookie global; a real relocation table covering every absolute `imm32` in `.text`                                                                                                                                                                                                                                                        |
+| injected section  | random three-letter name, RWX, NOP sled with `AddressOfEntryPoint` pointing at it, and the replacement import directory (data directory 1): one descriptor importing `FireInTheHole` from `client_x86.dll` with plain names, `FirstThunk` pointing back at the original `client_x86` slot in `.rdata`                                        |
 
 The import groups are drawn from `tools/imports_db.json`: ADVAPI32, KERNEL32,
 USER32 by name; WS2_32 by ordinal only; an OLEAUT32 group holding only `#6`
@@ -60,7 +60,7 @@ python3 tools/make_fixture.py fixture.exe [--pages N] [--seed S] [--plain] [--wr
 It is the file format only. It does **not** reproduce the protector's runtime
 (the vectored exception handler that decrypts pages on first execution, the
 patching of the NOP sled, the hand-filling of the IAT), and the "code" in
-`.text` only has to look like x86 *statistically* - it is not a runnable
+`.text` only has to look like x86 _statistically_ - it is not a runnable
 program and disassembling it will not give you sensible functions. Numbers
 that depend on the real client (17 000 pages, 22 groups, 626 imports, 3 OEP
 candidates) are not reproduced; the fixture has 600 pages, 6 groups, 38

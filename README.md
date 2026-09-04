@@ -50,7 +50,7 @@ seven steps in order and writes a log you can read.
 
 ## Quick start (users)
 
-1. Build `patcher/dist/TriarchPatcher.exe` (see *Building*). There is no
+1. Build `patcher/dist/TriarchPatcher.exe` (see _Building_). There is no
    prebuilt binary and no release download: the repository ships source only.
    It does not ship the game client either — you need your own installation
    with `triarch.exe` and `client_x86.dll` in it.
@@ -65,13 +65,13 @@ the new executable.
 
 Keep these in the game folder:
 
-| file | role | if missing |
-|---|---|---|
-| `triarch_clean.exe` | the patched client | nothing to run |
-| `uriel_stub.dll` | replaces the anti-cheat DLL | the client will not start |
-| `uriel_offsets.ini` | addresses for this build | the stub refuses to arm |
+| file                | role                         | if missing                                |
+| ------------------- | ---------------------------- | ----------------------------------------- |
+| `triarch_clean.exe` | the patched client           | nothing to run                            |
+| `uriel_stub.dll`    | replaces the anti-cheat DLL  | the client will not start                 |
+| `uriel_offsets.ini` | addresses for this build     | the stub refuses to arm                   |
 | `uriel_natives.ini` | the `triarch_native` gateway | client runs, **mods silently do nothing** |
-| `mods\` | mod host + mods | no mods |
+| `mods\`             | mod host + mods              | no mods                                   |
 
 `mods\config.json` is yours: a re-patch never overwrites it.
 
@@ -97,18 +97,18 @@ is exactly the silent-wrong-address bug this project exists to avoid.
 
 ## Documentation
 
-| # | document | what you learn |
-|---|---|---|
-| 00 | [start here](docs/00-start-here.md) | reading order, prerequisites, how to set up a safe lab |
-| 00b | [how a Metin2 client works](docs/00b-how-a-metin2-client-works.md) | the engine, the embedded Python, the binding tables, the frame loop, entities, the protocol: the picture every later document assumes |
-| 01 | [how Uriel protects the client](docs/01-how-uriel-protects-the-client.md) | the four transformations, and how each was discovered |
-| 02 | [unpacking offline](docs/02-unpacking-offline.md) | the many-time-pad keystream attack, decoding the import table, finding the entry point, rebuilding the PE |
-| 03 | [the patcher pipeline](docs/03-patcher-pipeline.md) | the seven steps as a specification, failure modes, building the exe |
-| 04 | [offsets and ini files](docs/04-offsets-and-ini-files.md) | never hardcode an address: anchors, resolvers, the ini formats, adding a resolver |
-| 05 | [the stub DLL](docs/05-stub-dll.md) | how the DLL is loaded, every hook, every native exposed to Python, how mods are bootstrapped |
-| 06 | [the mod framework](docs/06-mod-framework.md) | modhost lifecycle, the API surface, config and profiles, writing a mod |
-| 07 | [mods catalogue](docs/07-mods-catalogue.md) | every shipped mod: purpose, config keys, what it teaches |
-| 08 | [glossary](docs/08-glossary.md) | the vocabulary, briefly |
+| #   | document                                                                  | what you learn                                                                                                                        |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 00  | [start here](docs/00-start-here.md)                                       | reading order, prerequisites, how to set up a safe lab                                                                                |
+| 00b | [how a Metin2 client works](docs/00b-how-a-metin2-client-works.md)        | the engine, the embedded Python, the binding tables, the frame loop, entities, the protocol: the picture every later document assumes |
+| 01  | [how Uriel protects the client](docs/01-how-uriel-protects-the-client.md) | the four transformations, and how each was discovered                                                                                 |
+| 02  | [unpacking offline](docs/02-unpacking-offline.md)                         | the many-time-pad keystream attack, decoding the import table, finding the entry point, rebuilding the PE                             |
+| 03  | [the patcher pipeline](docs/03-patcher-pipeline.md)                       | the seven steps as a specification, failure modes, building the exe                                                                   |
+| 04  | [offsets and ini files](docs/04-offsets-and-ini-files.md)                 | never hardcode an address: anchors, resolvers, the ini formats, adding a resolver                                                     |
+| 05  | [the stub DLL](docs/05-stub-dll.md)                                       | how the DLL is loaded, every hook, every native exposed to Python, how mods are bootstrapped                                          |
+| 06  | [the mod framework](docs/06-mod-framework.md)                             | modhost lifecycle, the API surface, config and profiles, writing a mod                                                                |
+| 07  | [mods catalogue](docs/07-mods-catalogue.md)                               | every shipped mod: purpose, config keys, what it teaches                                                                              |
+| 08  | [glossary](docs/08-glossary.md)                                           | the vocabulary, briefly                                                                                                               |
 
 ## Requirements
 

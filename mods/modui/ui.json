@@ -2,8 +2,8 @@
   "title": "Mod manager",
   "hint": "F10 opens and closes this window (per client).",
   "rows": [
-    {"type": "checkbox", "key": "OPEN_ON_START", "label": "Open on start"},
-    {"type": "separator"},
-    {"type": "value", "key": "TOGGLE_KEY", "label": "Toggle key (DIK)"}
+    { "type": "checkbox", "key": "OPEN_ON_START", "label": "Open on start" },
+    { "type": "separator" },
+    { "type": "value", "key": "TOGGLE_KEY", "label": "Toggle key (DIK)" }
   ]
 }

@@ -75,15 +75,9 @@
       },
       "stack_bytes": 12,
       "confidence": "verified-live",
-      "requires": [
-        "player-ready",
-        "in-game"
-      ],
+      "requires": ["player-ready", "in-game"],
       "thread": "game",
-      "side_effects": [
-        "combat",
-        "movement"
-      ],
+      "side_effects": ["combat", "movement"],
       "emits": [],
       "safety": "unsafe",
       "capability": "player.control",
@@ -115,14 +109,9 @@
       },
       "stack_bytes": 12,
       "confidence": "verified-live",
-      "requires": [
-        "player-ready",
-        "in-game"
-      ],
+      "requires": ["player-ready", "in-game"],
       "thread": "game",
-      "side_effects": [
-        "combat"
-      ],
+      "side_effects": ["combat"],
       "emits": [],
       "safety": "unsafe",
       "capability": "player.control",
@@ -157,20 +146,10 @@
       },
       "stack_bytes": 16,
       "confidence": "verified-live",
-      "requires": [
-        "player-ready",
-        "in-game",
-        "not-mounted"
-      ],
+      "requires": ["player-ready", "in-game", "not-mounted"],
       "thread": "game",
-      "side_effects": [
-        "combat",
-        "network"
-      ],
-      "emits": [
-        "skill",
-        "horse_ride"
-      ],
+      "side_effects": ["combat", "network"],
+      "emits": ["skill", "horse_ride"],
       "safety": "unsafe",
       "capability": "player.control",
       "doc": "Buffs, attack skills, cooldowns, mana and range, from the skill list picked in the autohunt window. NOTE `now` is 64-bit: it occupies two stack slots, which is why stack_bytes is 16 for three arguments. EMITS: SendUseSkillPacket normally, and /user_horse_ride if the character is MOUNTED - hence the not-mounted precondition."
@@ -192,14 +171,9 @@
       },
       "stack_bytes": 4,
       "confidence": "verified-static",
-      "requires": [
-        "player-ready",
-        "in-game"
-      ],
+      "requires": ["player-ready", "in-game"],
       "thread": "game",
-      "side_effects": [
-        "ui"
-      ],
+      "side_effects": ["ui"],
       "emits": [],
       "safety": "unsafe",
       "capability": "player.control",
@@ -217,14 +191,9 @@
       },
       "stack_bytes": 0,
       "confidence": "verified-static",
-      "requires": [
-        "player-ready",
-        "in-game"
-      ],
+      "requires": ["player-ready", "in-game"],
       "thread": "game",
-      "side_effects": [
-        "combat"
-      ],
+      "side_effects": ["combat"],
       "emits": [],
       "safety": "unsafe",
       "capability": "player.control",
@@ -242,14 +211,9 @@
       },
       "stack_bytes": 0,
       "confidence": "verified-static",
-      "requires": [
-        "player-ready",
-        "in-game"
-      ],
+      "requires": ["player-ready", "in-game"],
       "thread": "game",
-      "side_effects": [
-        "combat"
-      ],
+      "side_effects": ["combat"],
       "emits": [],
       "safety": "unsafe",
       "capability": "player.control",
@@ -267,13 +231,9 @@
       },
       "stack_bytes": 0,
       "confidence": "verified-live",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "thread": "game",
-      "side_effects": [
-        "config"
-      ],
+      "side_effects": ["config"],
       "emits": [],
       "safety": "safe",
       "capability": "player.read",
@@ -302,16 +262,10 @@
       },
       "stack_bytes": 8,
       "confidence": "verified-static",
-      "requires": [
-        "connected"
-      ],
+      "requires": ["connected"],
       "thread": "game",
-      "side_effects": [
-        "network"
-      ],
-      "emits": [
-        "chat"
-      ],
+      "side_effects": ["network"],
+      "emits": ["chat"],
       "safety": "dangerous",
       "capability": "network.send",
       "doc": "DELIBERATELY UNPLACED (area null) so it is not reachable as api.<area>.SendChatPacket. Anything sending /auto_hunt would put this client into the developers' live autohunt analytics - the one thing the isolation rule forbids. Reach it explicitly if you must."
@@ -334,9 +288,7 @@
       "offset": "kAutoAtkVidOff",
       "type": "u32",
       "access": "r",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "doc": "The current auto-attack target VID, 0 when unengaged. READ ONLY on purpose: it must stay consistent with the cached actor pointer 4 bytes above it. Use OnPressActor to set, DropEngagement to clear."
     },
     {
@@ -346,9 +298,7 @@
       "offset_delta": 4,
       "type": "u32",
       "access": "r",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "doc": "The CACHED ACTOR POINTER that sits 4 bytes above the auto-attack VID. UseAutoSkills takes it as pTarget. Read-only: it must stay consistent with the VID beside it, which is what __OnPressActor guarantees and a hand-write would not."
     },
     {
@@ -357,9 +307,7 @@
       "offset": "kHuntUseSkillOff",
       "type": "bool8",
       "access": "rw",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "doc": "The autohunt window's 'use skills' checkbox. UseAutoSkills tests this first and returns immediately when clear."
     },
     {
@@ -368,9 +316,7 @@
       "offset": "kHuntUseMountOff",
       "type": "bool8",
       "access": "rw",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "doc": "The autohunt window's 'use mount' checkbox, the byte just above hunt_use_skill. UseAutoSkills dismounts to cast an attack skill and only REMOUNTS afterwards when this is set; clear, and it stays dismounted. Set it to drive the client's own dismount->cast->remount cycle."
     },
     {
@@ -379,9 +325,7 @@
       "offset": "kHuntStoneOff",
       "type": "bool8",
       "access": "rw",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "doc": "The 'stones only' choice. AutoHuntLoop reads this byte at both of its FindAndSetNewTarget call sites."
     },
     {
@@ -390,9 +334,7 @@
       "offset": "kPlayerStateOff",
       "type": "u32",
       "access": "r",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "doc": "Player state enum; 0x89 is the charge-skill state __OnPressActor tests for."
     },
     {
@@ -401,9 +343,7 @@
       "offset": "kAnchorOff",
       "type": "vec2f",
       "access": "rw",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "adapter": "vec2",
       "doc": "The point FindVictim searches around - NOT the character position. Two floats."
     },
@@ -413,9 +353,7 @@
       "offset": "kHuntSkillVecOff",
       "type": "vector<u8>",
       "access": "r",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "adapter": "vector_u8",
       "doc": "The configured skill slots. A std::vector<BYTE> begin/end POINTER PAIR, not a value - exposed through an adapter that returns a list. Raw access to this offset is meaningless and is not offered."
     },
@@ -425,9 +363,7 @@
       "offset": "kAutoMoveActiveOff",
       "type": "bool8",
       "access": "r",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "doc": "True while a walk-to-waypoint is in progress. Set by CPythonPlayer::AutoMoveToPosition once the route is accepted; cleared on arrival, on cancel, and when no path can be built. Covers BOTH a mod calling api.move_to and the player clicking the atlas, because every route goes through that one function."
     },
     {
@@ -436,9 +372,7 @@
       "offset": "kAutoMoveEnabledOff",
       "type": "bool8",
       "access": "r",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "doc": "Set alongside auto_move_active when a route is accepted. Reading BOTH tells a stuck 'active' apart from a genuinely live route."
     },
     {
@@ -447,9 +381,7 @@
       "offset": "kAutoMoveDestOff",
       "type": "vec2f",
       "access": "r",
-      "requires": [
-        "player-ready"
-      ],
+      "requires": ["player-ready"],
       "adapter": "vec2",
       "doc": "Destination (x, y) the current route is heading to, written by CPythonPlayer::AutoMoveToPosition just before the active flag. Diagnostic: a stale destination with active=1 means the flag was never cleared."
     }

@@ -31,12 +31,12 @@ So the project has one hard invariant: **no address is ever typed in**. (The
 one table of literal addresses in `tools/mkoffsets.py`, `BASELINE` near the
 top of the file, is a regression fixture: `--check` compares fresh resolutions
 against it, and it is never used to produce output - section 9.) Every
-value is re-derived, per build, from an *anchor* - something a recompilation
+value is re-derived, per build, from an _anchor_ - something a recompilation
 cannot move:
 
 - a literal string the code references (`"SYSERR: "`),
 - an import name (`GetCurrentHwProfileA`),
-- an instruction *shape* with the volatile parts wildcarded,
+- an instruction _shape_ with the volatile parts wildcarded,
 - a Python method name in an embedded `PyMethodDef` table,
 - a structural relationship ("the only caller of X", "the callee that calls Y").
 
@@ -46,21 +46,21 @@ copy (`patcher/src/triarch_patcher/vendor/mkoffsets.py`) and runs
 stub contains one constant, the preferred image base; its comment says
 everything else is "regenerated per build ... never hardcode one here".
 
-Why so strict? A wrong address is a *silent* bug: a hook at the wrong place
+Why so strict? A wrong address is a _silent_ bug: a hook at the wrong place
 never fires or corrupts something unrelated, a struct read at the wrong offset
 returns a plausible integer, and nothing throws. So the resolver fails
-*closed*: a shape that matches twice returns nothing (`block_movement()`:
+_closed_: a shape that matches twice returns nothing (`block_movement()`:
 "ambiguity here would mean patching an arbitrary function"), and an unresolved
-key is *omitted* rather than written as zero - the stub treats an absent key as
+key is _omitted_ rather than written as zero - the stub treats an absent key as
 "feature off" but `0` as an address.
 
-**Prefer measuring to inferring.** A disassembly shows what *could* execute.
+**Prefer measuring to inferring.** A disassembly shows what _could_ execute.
 `mkoffsets.py` records several answers that looked right in a listing and were
 wrong at runtime: a first `py_glue()` matched a byte shape and returned the
 wrong `InitModule`; a shape-match for `CreateAutoBotSettings` found "the first
 of many functions with that shape"; an unbounded call scan "silently merged the
 NEXT function's calls". Each was caught by running the client with a trace
-attached. Trust a value once it has been *observed* doing the job.
+attached. Trust a value once it has been _observed_ doing the job.
 
 ## 2. Addresses, three ways: VA, RVA, file offset
 
@@ -91,7 +91,7 @@ def off(self, va):                      # VA -> file offset, or None
     return None
 ```
 
-The `None` branch matters: a section's *virtual* size can exceed its size on
+The `None` branch matters: a section's _virtual_ size can exceed its size on
 disk (uninitialised globals). `Resolver._in_image()` exists because the game's
 singleton holders "live past the raw end of `.data`" - valid VAs with no file
 offset at all. The reverse mapping for `.text` is `self.tva + (o - self.tro)`.
@@ -112,10 +112,11 @@ VA          0x0058EE90
 ```
 
 Open `triarch_clean.exe` in a hex editor at `0x17F290` and you find `C2 00 00`
+
 - `ret 0`, the dead diagnostic sink that `trace_sink()` insisted on. Do the
-same at `0x18E290`, the answer you get if you assume `.text` starts at RVA
-`0x1000` as it does in most executables, and you land on `01 50 E8`: nothing.
-That is the whole reason conversions go through the section table.
+  same at `0x18E290`, the answer you get if you assume `.text` starts at RVA
+  `0x1000` as it does in most executables, and you land on `01 50 E8`: nothing.
+  That is the whole reason conversions go through the section table.
 
 ## 3. Anchor techniques, with the code that uses them
 
@@ -146,7 +147,7 @@ over `.text`. `func_start` walks backwards to a run of two `int3` bytes
 is a plausible prologue start. Its docstring says why prologue matching alone
 is wrong: stack-aligned functions open with `53 8B DC`, not `55 8B EC`.
 
-Two refinements recur. `trace_sink()` counts which *call target* most often
+Two refinements recur. `trace_sink()` counts which _call target_ most often
 follows pushes of the `PythonApplication.cpp` path, then insists it be a bare
 `ret 0` (`C2 00 00`). `auth_recv_phase()` has five functions pushing
 `"__AuthState_RecvPhase ERROR!"` and keeps the one that also calls the
@@ -172,7 +173,7 @@ That is the whole derivation of `kGetPcName` (`GetComputerNameW`) and
 
 ### 3.3 Instruction-shape scanning
 
-The strongest anchor is a sequence of instructions whose *opcodes* are fixed
+The strongest anchor is a sequence of instructions whose _opcodes_ are fixed
 but whose operands (struct offsets, constants) are read out at match time.
 `block_movement()` matches
 
@@ -202,18 +203,18 @@ Two bindings that had resolved on every earlier build reported zero calls.
 A byte pattern is a heuristic; when the anchor is "the calls this function
 makes", decode the instructions.
 
-`skip_collision()` anchors on *data* the developers chose: the actor-collision
+`skip_collision()` anchors on _data_ the developers chose: the actor-collision
 switch is a magic dword, `0x000A35F5` to enable and `0x000F35F5` to disable.
 Searching for `C7 81 ?? ?? ?? ?? F5 35 0A 00` (`mov dword [ecx+off32],
-0xA35F5`) yields the function *and* the struct offset in one match.
+0xA35F5`) yields the function _and_ the struct offset in one match.
 
 ### 3.4 PyMethodDef tables
 
 The client embeds CPython and registers its own modules (`playerm2g2`,
 `miniMap`, `chat`, ...). Each module has a `PyMethodDef[]` array whose entries
 are `{const char* name; PyCFunction fn; int flags; const char* doc}` - 16 bytes
-in a 32-bit build. The method *name* is a real NUL-terminated string, so it
-survives every rebuild. `_py_tables()` harvests every table:
+in a 32-bit build. The method _name_ is a real NUL-terminated string, so it
+survives every rebuild. `_py_tables()` harvests every table using the following code:
 
 ```python
 for off in range(0, len(blob) - 16, 4):
@@ -223,7 +224,7 @@ for off in range(0, len(blob) - 16, 4):
     s = self._cstr(nmp)                 # name must be identifier-like
 ```
 
-and groups consecutive 16-byte entries into tables. `binding(module, method)`
+Afterwards it groups consecutive 16-byte entries into tables. `binding(module, method)`
 finds a table's registration site - the game pushes the module name as an
 immediate right after the table, `68 <table> 68 <name> E8 <InitModule>` -
 checks the pushed name equals `module`, and returns the VA for `method`. This
@@ -282,79 +283,79 @@ column is what the stub does with it, taken from `stub/uriel_stub.cpp`.
 
 ### Required: anti-cheat replacement and hooks
 
-| Key | Derived from | Stub use |
-|---|---|---|
-| `kTraceSink` | `trace_sink()`: most-called target after pushes of the `PythonApplication.cpp` path, must be `ret 0` | `PatchTraceSink()` redirects the dead diagnostic sink |
-| `kTraceReal` | `trace_real()`: only pusher of `"SYSERR: "` | ...to this live `__TraceError` |
-| `kVerifyBufsEqual` | `verify_bufs_equal()`: constant-time compare loop `8D 49 04 33 41 FC 0B`; fallback via the `HashTransformation` string | `HookVerifyBufsEqual()` - 5-byte jmp hook that recognises the sentinel digest |
-| `kAuthRecvPhase` | `auth_recv_phase()`: `"__AuthState_RecvPhase ERROR!"` pusher that also calls the hw-profile function | `InstallAuthHooks()` |
-| `kAuthProcess` | `auth_process()`: sole caller of `kAuthRecvPhase` | `InstallAuthHooks()` |
-| `kGetPcName` | `fn_calling_import("GetComputerNameW")` | `InstallAuthHooks()` |
-| `kGetHwProfileId` | `fn_calling_import("GetCurrentHwProfileA")` | `InstallAuthHooks()` |
-| `kSendAppend` | `send_append()`: first `jmp`/`call` inside the callback the client registers via the stub's own `FireInTheHole` import | `InstallNetHooks()` - outgoing buffer hook |
-| `kRecvBuf` | `recv_buf()`: unique 16-byte prologue + member reads `+0x24/+0x28` | `InstallNetHooks()` - incoming hook |
-| `kUrielObjOffset` | `fire_in_the_hole()`: `lea esi,[edi+imm32]` before the import call | loaded as required; no further consumer in the current stub |
-| `kIatConnect`, `kIatClosesocket`, `kIatSend`, `kIatRecv`, `kIatWSAGetLastError` | `iat()` | `HookIat()` in `InstallNetHooks()` (`WSAGetLastError` save-only) |
-| `kIatWinHttpConnect`, `kIatWinHttpOpenRequest`, `kIatInternetOpenUrlA`, `kIatURLDownloadToFileA` | `iat()` | `HookIat()` in `InstallNetHooks()` |
-| `SLOT2_ARG_BYTES` | `slot2_arg_bytes()`: pushes + `sub esp,imm8` before `call edi` in the login gate | `ApplySlot2Ret()` rewrites the stub's own `ret imm16` - not an address |
+| Key                                                                                              | Derived from                                                                                                           | Stub use                                                                      |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `kTraceSink`                                                                                     | `trace_sink()`: most-called target after pushes of the `PythonApplication.cpp` path, must be `ret 0`                   | `PatchTraceSink()` redirects the dead diagnostic sink                         |
+| `kTraceReal`                                                                                     | `trace_real()`: only pusher of `"SYSERR: "`                                                                            | ...to this live `__TraceError`                                                |
+| `kVerifyBufsEqual`                                                                               | `verify_bufs_equal()`: constant-time compare loop `8D 49 04 33 41 FC 0B`; fallback via the `HashTransformation` string | `HookVerifyBufsEqual()` - 5-byte jmp hook that recognises the sentinel digest |
+| `kAuthRecvPhase`                                                                                 | `auth_recv_phase()`: `"__AuthState_RecvPhase ERROR!"` pusher that also calls the hw-profile function                   | `InstallAuthHooks()`                                                          |
+| `kAuthProcess`                                                                                   | `auth_process()`: sole caller of `kAuthRecvPhase`                                                                      | `InstallAuthHooks()`                                                          |
+| `kGetPcName`                                                                                     | `fn_calling_import("GetComputerNameW")`                                                                                | `InstallAuthHooks()`                                                          |
+| `kGetHwProfileId`                                                                                | `fn_calling_import("GetCurrentHwProfileA")`                                                                            | `InstallAuthHooks()`                                                          |
+| `kSendAppend`                                                                                    | `send_append()`: first `jmp`/`call` inside the callback the client registers via the stub's own `FireInTheHole` import | `InstallNetHooks()` - outgoing buffer hook                                    |
+| `kRecvBuf`                                                                                       | `recv_buf()`: unique 16-byte prologue + member reads `+0x24/+0x28`                                                     | `InstallNetHooks()` - incoming hook                                           |
+| `kUrielObjOffset`                                                                                | `fire_in_the_hole()`: `lea esi,[edi+imm32]` before the import call                                                     | loaded as required; no further consumer in the current stub                   |
+| `kIatConnect`, `kIatClosesocket`, `kIatSend`, `kIatRecv`, `kIatWSAGetLastError`                  | `iat()`                                                                                                                | `HookIat()` in `InstallNetHooks()` (`WSAGetLastError` save-only)              |
+| `kIatWinHttpConnect`, `kIatWinHttpOpenRequest`, `kIatInternetOpenUrlA`, `kIatURLDownloadToFileA` | `iat()`                                                                                                                | `HookIat()` in `InstallNetHooks()`                                            |
+| `SLOT2_ARG_BYTES`                                                                                | `slot2_arg_bytes()`: pushes + `sub esp,imm8` before `call edi` in the login gate                                       | `ApplySlot2Ret()` rewrites the stub's own `ret imm16` - not an address        |
 
 ### Optional (pipeline): the mod host
 
-| Key | Derived from | Stub use |
-|---|---|---|
-| `kPyRunLine` | `run_line()`: `PythonLauncher.cpp` function pushing `"RunMain Error %s"` and `Py_file_input` (`68 01 01 00 00`) | `PyRunLine()` - every line the mod host executes |
-| `kPyLauncherInst` | `launcher_inst()`: `mov ecx,[imm32]` in `RunFile`'s only caller (deref **twice**) | `LauncherThis()` |
-| `kPyRunFile` | `run_file()`: launcher function pushing `"file not found! %s"` | not read; intermediate for the two above |
-| `kPyRunStringFlags` | `py_run_string_flags()`: `RunLine`'s first call | not read; "recorded so a future change can tell a CPython move from a game-code move" |
-| `kPackMgrInst`, `kPackGet` | `pack_mgr()`: `A1 <inst>` ... `8B 08 E8` in `RunFile` | not read; harvested for a future VFS hook |
+| Key                        | Derived from                                                                                                    | Stub use                                                                              |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `kPyRunLine`               | `run_line()`: `PythonLauncher.cpp` function pushing `"RunMain Error %s"` and `Py_file_input` (`68 01 01 00 00`) | `PyRunLine()` - every line the mod host executes                                      |
+| `kPyLauncherInst`          | `launcher_inst()`: `mov ecx,[imm32]` in `RunFile`'s only caller (deref **twice**)                               | `LauncherThis()`                                                                      |
+| `kPyRunFile`               | `run_file()`: launcher function pushing `"file not found! %s"`                                                  | not read; intermediate for the two above                                              |
+| `kPyRunStringFlags`        | `py_run_string_flags()`: `RunLine`'s first call                                                                 | not read; "recorded so a future change can tell a CPython move from a game-code move" |
+| `kPackMgrInst`, `kPackGet` | `pack_mgr()`: `A1 <inst>` ... `8B 08 E8` in `RunFile`                                                           | not read; harvested for a future VFS hook                                             |
 
 ### Optional (omitted): attack bridge and autohunt (`autohunt_api()`)
 
-| Key | Derived from | Stub use |
-|---|---|---|
-| `kPlayerInst` | `A1 imm32` in the `AttackPickedActor` binding | `PlayerThis()`; also `[singletons]` in the natives ini |
-| `kPlayerSubObj` | constant 4 once `kPlayerInst` resolves (`mov eax,[edi+4]`) | `GetMainInst()` |
-| `kGetMainInstOff` | `FF 50 xx` / `FF 90 imm32` vtable call in the same body | `GetMainInst()` vtable slot |
-| `kOnPressActor` | `8B CF E8 rel32` in the same body | `AttackTick()` |
-| `kAutoHuntLoop` | only pusher of `"/auto_hunt end"` | not read; root of the chain |
-| `kFindAndSetNewTarget` | loop callee that calls `kOnPressActor` | `HuntTick()`; native `FindAndSetNewTarget` |
-| `kMiniMapInst` | `A1 imm32` in `FindAndSetNewTarget` | hunt range read; `[singletons]` |
-| `kAutoHuntRangeOff` | `movss xmm0,[eax+imm32]` there | `HuntRange()` |
-| `kAnchorOff` | `add ecx,imm32` or `lea r,[r+imm32]` there | `HuntTick()`; field `hunt_anchor` |
-| `kPlayerUpdate` | `func_start` of the loop's first caller | not read; intermediate |
-| `kUpdateAutoAttack` | `Update` callee opening with two `83 7E` compares | native `UpdateAutoAttack` |
-| `kAutoAtkVidOff` | first `cmp` disp + 4 in that head | `HuntTick()`; fields `auto_attack_vid/_target` |
-| `kPlayerStateOff` | byte before imm32 `0x89` in `__OnPressActor` | field `player_state` only |
-| `kHuntStoneOff` | `movzx eax, byte [edi+i32]` before the call to `FindAndSetNewTarget` | `HuntTick()`; field `hunt_stones` |
-| `kItemInst` | `playerm2g2.PickCloseItem` callee opening `mov eax,[imm32]; mov edi,[eax]` | `ItemObject()` (ground items); also `[singletons]` |
-| `kUseAutoSkills` | `_skill_api()`: the `"/user_horse_ride"` pusher with the gate+vector shape | `SkillTick()`; native `UseAutoSkills` |
-| `kHuntUseSkillOff` | first `cmp byte [this+i32],0` in that body | `SkillTick()`; field `hunt_use_skill` |
-| `kHuntSkillVecOff` | adjacent `mov r,[this+A]` / `mov r,[this+A+4]` pair | `SkillTick()`; field `hunt_skills` |
-| `kHuntUseMountOff` | `cmp byte [this+gate+1],0` confirmed present | field `hunt_use_mount` only |
-| `kMountedOff` | `cmp byte [eax+d8],0` right after `call [eax+kGetMainInstOff]` | `SkillTick()`; field `mounted` |
+| Key                    | Derived from                                                               | Stub use                                               |
+| ---------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `kPlayerInst`          | `A1 imm32` in the `AttackPickedActor` binding                              | `PlayerThis()`; also `[singletons]` in the natives ini |
+| `kPlayerSubObj`        | constant 4 once `kPlayerInst` resolves (`mov eax,[edi+4]`)                 | `GetMainInst()`                                        |
+| `kGetMainInstOff`      | `FF 50 xx` / `FF 90 imm32` vtable call in the same body                    | `GetMainInst()` vtable slot                            |
+| `kOnPressActor`        | `8B CF E8 rel32` in the same body                                          | `AttackTick()`                                         |
+| `kAutoHuntLoop`        | only pusher of `"/auto_hunt end"`                                          | not read; root of the chain                            |
+| `kFindAndSetNewTarget` | loop callee that calls `kOnPressActor`                                     | `HuntTick()`; native `FindAndSetNewTarget`             |
+| `kMiniMapInst`         | `A1 imm32` in `FindAndSetNewTarget`                                        | hunt range read; `[singletons]`                        |
+| `kAutoHuntRangeOff`    | `movss xmm0,[eax+imm32]` there                                             | `HuntRange()`                                          |
+| `kAnchorOff`           | `add ecx,imm32` or `lea r,[r+imm32]` there                                 | `HuntTick()`; field `hunt_anchor`                      |
+| `kPlayerUpdate`        | `func_start` of the loop's first caller                                    | not read; intermediate                                 |
+| `kUpdateAutoAttack`    | `Update` callee opening with two `83 7E` compares                          | native `UpdateAutoAttack`                              |
+| `kAutoAtkVidOff`       | first `cmp` disp + 4 in that head                                          | `HuntTick()`; fields `auto_attack_vid/_target`         |
+| `kPlayerStateOff`      | byte before imm32 `0x89` in `__OnPressActor`                               | field `player_state` only                              |
+| `kHuntStoneOff`        | `movzx eax, byte [edi+i32]` before the call to `FindAndSetNewTarget`       | `HuntTick()`; field `hunt_stones`                      |
+| `kItemInst`            | `playerm2g2.PickCloseItem` callee opening `mov eax,[imm32]; mov edi,[eax]` | `ItemObject()` (ground items); also `[singletons]`     |
+| `kUseAutoSkills`       | `_skill_api()`: the `"/user_horse_ride"` pusher with the gate+vector shape | `SkillTick()`; native `UseAutoSkills`                  |
+| `kHuntUseSkillOff`     | first `cmp byte [this+i32],0` in that body                                 | `SkillTick()`; field `hunt_use_skill`                  |
+| `kHuntSkillVecOff`     | adjacent `mov r,[this+A]` / `mov r,[this+A+4]` pair                        | `SkillTick()`; field `hunt_skills`                     |
+| `kHuntUseMountOff`     | `cmp byte [this+gate+1],0` confirmed present                               | field `hunt_use_mount` only                            |
+| `kMountedOff`          | `cmp byte [eax+d8],0` right after `call [eax+kGetMainInstOff]`             | `SkillTick()`; field `mounted`                         |
 
 ### Optional (omitted): collision, pass-through, auto-move
 
-| Key | Derived from | Stub use |
-|---|---|---|
-| `kEnableSkipCollision`, `kDisableSkipCollision`, `kSkipCollisionOff` | `skip_collision()`: `C7 81 off32 imm32` with the `0xA35F5`/`0xF35F5` sentinels | `SkipCollisionSet()` |
-| `kInstActorOff` | `mov ecx,[reg+imm32]` at a caller of Enable | `SkipCollisionSet()` |
-| `kActorPassLoVA`, `kActorPassHiVA`, `kActorPassLo`, `kActorPassHi` | `actor_pass()`: two `call getter; cmp eax,imm32` halves joined by `jb +0x12`, both calls to the same `mov eax,[ecx+off]; ret` | `ActorPassSet()` pokes the two immediates; `Lo/Hi` are the originals for restore |
-| `kActorPass2LoVA`, `kActorPass2HiVA`, `kActorPass2Lo`, `kActorPass2Hi` | the adjacent second range with the same getter | `ActorPassSet()` band carve-out |
-| `kActorRaceOff`, `kActorRaceGetter` | the getter's field offset and VA | not read; diagnostic |
-| `kBlockMovement` | `block_movement()`: unique `mov/test/cmovne/jmp` shape | `TerrainPassSet()` |
-| `kAutoMoveActiveOff` | `auto_move()`: `mov byte [reg+off],1; call; test al,al; je; mov al,1` | field `auto_move_active` only |
-| `kAutoMoveDestOff`, `kAutoMoveEnabledOff` | contiguous `movss` pair and the earlier `mov byte,1` above it | fields `auto_move_dest`, `auto_move_enabled` |
-| `kPlayerStateOff2`, `kPlayerWalkState` | `cmp dword [reg+d8], imm32` (`0x80..0xFF`) above the flag | `kPlayerWalkState` -> `config.json` (section 7); `Off2` not consumed |
+| Key                                                                    | Derived from                                                                                                                  | Stub use                                                                         |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `kEnableSkipCollision`, `kDisableSkipCollision`, `kSkipCollisionOff`   | `skip_collision()`: `C7 81 off32 imm32` with the `0xA35F5`/`0xF35F5` sentinels                                                | `SkipCollisionSet()`                                                             |
+| `kInstActorOff`                                                        | `mov ecx,[reg+imm32]` at a caller of Enable                                                                                   | `SkipCollisionSet()`                                                             |
+| `kActorPassLoVA`, `kActorPassHiVA`, `kActorPassLo`, `kActorPassHi`     | `actor_pass()`: two `call getter; cmp eax,imm32` halves joined by `jb +0x12`, both calls to the same `mov eax,[ecx+off]; ret` | `ActorPassSet()` pokes the two immediates; `Lo/Hi` are the originals for restore |
+| `kActorPass2LoVA`, `kActorPass2HiVA`, `kActorPass2Lo`, `kActorPass2Hi` | the adjacent second range with the same getter                                                                                | `ActorPassSet()` band carve-out                                                  |
+| `kActorRaceOff`, `kActorRaceGetter`                                    | the getter's field offset and VA                                                                                              | not read; diagnostic                                                             |
+| `kBlockMovement`                                                       | `block_movement()`: unique `mov/test/cmovne/jmp` shape                                                                        | `TerrainPassSet()`                                                               |
+| `kAutoMoveActiveOff`                                                   | `auto_move()`: `mov byte [reg+off],1; call; test al,al; je; mov al,1`                                                         | field `auto_move_active` only                                                    |
+| `kAutoMoveDestOff`, `kAutoMoveEnabledOff`                              | contiguous `movss` pair and the earlier `mov byte,1` above it                                                                 | fields `auto_move_dest`, `auto_move_enabled`                                     |
+| `kPlayerStateOff2`, `kPlayerWalkState`                                 | `cmp dword [reg+d8], imm32` (`0x80..0xFF`) above the flag                                                                     | `kPlayerWalkState` -> `config.json` (section 7); `Off2` not consumed             |
 
 ### Optional (omitted): market capture and minimap
 
-| Key | Derived from | Stub use |
-|---|---|---|
-| `kOfflineshopRecv` | `offlineshop_cap()`: lone pusher of `"UNKNOWN OFFLINESHOP SUBHEADER"`, nearest `53 8B DC 83 EC ?? ...` prologue above it | `InstallShopCapture()` |
-| `kOfflineshopInst` | `offlineshop.GetShopUnlockSlotCount` opening `A1 imm32 ; 8B 00` | shop capture, double-indirect singleton |
-| `kMiniMapAddWayPoint` | `minimap_waypoint()`: `6A 06 E8 rel32` unique in the `AddWayPoint` binding | `minimap_mark` native (hand-rolled thunk) |
-| `kMiniMapRemoveWayPoint` | `8B 09 E8 rel32` unique in `RemoveWayPoint` | `minimap_unmark` native |
+| Key                      | Derived from                                                                                                             | Stub use                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `kOfflineshopRecv`       | `offlineshop_cap()`: lone pusher of `"UNKNOWN OFFLINESHOP SUBHEADER"`, nearest `53 8B DC 83 EC ?? ...` prologue above it | `InstallShopCapture()`                    |
+| `kOfflineshopInst`       | `offlineshop.GetShopUnlockSlotCount` opening `A1 imm32 ; 8B 00`                                                          | shop capture, double-indirect singleton   |
+| `kMiniMapAddWayPoint`    | `minimap_waypoint()`: `6A 06 E8 rel32` unique in the `AddWayPoint` binding                                               | `minimap_mark` native (hand-rolled thunk) |
+| `kMiniMapRemoveWayPoint` | `8B 09 E8 rel32` unique in `RemoveWayPoint`                                                                              | `minimap_unmark` native                   |
 
 Keys that exist only for `uriel_natives.ini` (not from `resolve_all()`):
 `py_glue()` produces the CPython glue, of which the nine `NATIVE_GLUE_KEYS`
@@ -388,13 +389,13 @@ The stub reads the file in `LoadOffsets()`, called from `DllMain` on
 zero in the required list is `FATAL: offset '...' missing/zero` and the stub
 runs "inert (no hooks)"; a zero in the optional list only logs a note. It then
 sets the environment variables `TRIARCH_ATTACK_OK`, `TRIARCH_HUNT_OK` and
-`TRIARCH_SKILL_OK` (`SetEnvironmentVariableA`; the DLL's only *export* is
+`TRIARCH_SKILL_OK` (`SetEnvironmentVariableA`; the DLL's only _export_ is
 `FireInTheHole`) so mods can degrade gracefully, and calls `LoadNatives()`.
 
-**The file is read once, at DLL load.** Nothing re-reads it. Regenerating
+**The file is read once, at DLL load** and is never read again. Regenerating
 `uriel_offsets.ini` (or `uriel_natives.ini`) under a running client changes
-nothing until that client is restarted; the mod host hot-reloads Python, not
-this.
+nothing until that client is restarted; the mod host hot-reloads Python, but not
+these offsets.
 
 ## 6. `uriel_natives.ini` and `mods/natives.json`
 
@@ -409,20 +410,20 @@ mod API. Its top-level keys:
   reads are `name`, `abi` (`"x86-msvc-thiscall"`), `this`, `args[].type` and
   `return.type`. Everything else - `stack_bytes`, `confidence`, `requires`,
   `side_effects`, `emits`, `safety`, `capability`, `doc` - is documentation
-  and policy recorded for later enforcement. Note that `stack_bytes` is *not*
+  and policy recorded for later enforcement. Note that `stack_bytes` is _not_
   trusted: the resolver recomputes it from the argument types.
 - `rejected` - natives that were investigated and deliberately not exposed,
   with the reason (`FindVictim` takes a float in `XMM2`, which the trampoline
   cannot pass, so it "FAILS CLOSED").
 - `fields` and `instance_fields` - typed reads/writes of struct members:
-  `name`, `owner` (`player` or `instance`), `offset` (the *key name* in the
+  `name`, `owner` (`player` or `instance`), `offset` (the _key name_ in the
   offsets dictionary, e.g. `kAutoAtkVidOff`), optional `offset_delta`,
   `type`, optional `adapter`, `access` (`r`/`rw`).
 
 The stack widths are fixed by `Resolver.STACK_WIDTH`: every 32-bit type is 4
 bytes, `i64`/`u64`/`f64` are 8. `this` travels in `ECX` and is not counted.
 
-### 6.2 How a native is resolved and cross-checked
+### 6.2 How native is resolved and cross-checked
 
 `Resolver.natives(registry_path)` does three things per entry.
 
@@ -436,29 +437,35 @@ bytes, `i64`/`u64`/`f64` are 8. `this` travels in `ECX` and is not counted.
    rejects the entry.
 3. **The binary's opinion.** `ret_imm(va)` disassembles the function with
    capstone from its start to the first `CC CC` padding and collects the
-   immediate of every `ret`. In `thiscall` and `stdcall` the *callee* cleans
+   immediate of every `ret`. In `thiscall` and `stdcall` the _callee_ cleans
    the arguments, so that immediate is ground truth for how many bytes the
    function expects. If it disagrees with the declared width the entry is
    **dropped**, with the message `DECLARED N bytes but the binary cleans M`.
    A wrong width is not an exception at runtime; it is a stack imbalance the
    trampoline cannot detect.
 
-`ret_imm()` also guards against a subtle trap: all `ret`s in one function share
-one immediate, so a region whose `ret`s *disagree* is two functions packed
-without padding. `OpenCharacterMenu` is exactly that (`ret 4` twice, then
-`ret 0xC` from the next function); the leading run wins and a note is
-attached. `cdecl` entries carry no immediate and cannot be checked; they are
-emitted with `checked=0`.
+This check has a useful side effect. A function cleans one fixed number of
+argument bytes, so every `ret` inside it carries the same immediate. If a
+scanned region contains `ret`s whose immediates _disagree_, it isn't one
+function — the scan ran off the end of the first into a second, because the two
+were laid out back-to-back with no `CC CC` between them. `ret_imm()` handles
+this by taking the immediate from the leading run and attaching a note to the
+entry. `OpenCharacterMenu` is the case in the wild: `ret 4` twice, then
+`ret 0xC` belonging to its unpadded neighbour, so 4 wins.
+
+`cdecl` functions are the exception. The caller cleans the stack there, so the
+`ret` has no immediate and there is nothing to check the declared width
+against. Those entries are emitted with `checked=0`.
 
 ### 6.3 The glue and why it is identity-anchored
 
 To register a real Python module the stub needs CPython's own entry points.
-`py_glue()` finds each from a *named* binding, never a byte fingerprint:
+`py_glue()` finds each from a _named_ binding, never a byte fingerprint:
 `InitModule` is the call after `push <harvested table>; push <name>` with at
 least five votes; the string getter must agree between `SendChatPacket(text)`
 (first argument) and `AppendChat(type, text)` (second), so agreement proves
 identity rather than position; the float getter is the call
-`AutoMoveToPosition(x, y)` makes *twice*. Disagreement drops the key.
+`AutoMoveToPosition(x, y)` makes _twice_. Disagreement drops the key.
 If any of the nine `NATIVE_GLUE_KEYS` is missing, `write_natives_ini()` writes
 **nothing** and returns the missing list. (The stub reads seven of the nine;
 `kPyImportAddModule` and `kPyModuleAddFunctions` are recorded for reference.)
@@ -492,7 +499,8 @@ FindAndSetNewTarget=0064F170|thiscall|12|player|void|1
 (`0084E1A0` and `052A5844` are the baseline-build values quoted in the
 resolver's own comments; the field lines are illustrative.) A field whose
 offset key did not resolve is skipped with `field X: kY unresolved - skipped`
-- which is why a new typed field needs *both* files regenerated.
+
+- which is why a new typed field needs _both_ files regenerated.
 
 The stub's `LoadNatives()` parses these sections and applies its own rejection
 rules per native: zero address, stack not a multiple of 4, more than 16
@@ -539,7 +547,7 @@ break every consumer.
    (`Resolver(path)._py_tables()`). A Python binding is the best start:
    `binding("playerm2g2", "SomeMethod")` gives a function whose body touches
    what you want.
-2. **Read the body in a disassembler** and pick the *shape*: the opcodes that
+2. **Read the body in a disassembler** and pick the _shape_: the opcodes that
    express the operation, with struct offsets and server-data constants
    (vnums, state numbers) as wildcards. `auto_move()` is a template that reads
    several offsets out of one match.
@@ -562,6 +570,7 @@ break every consumer.
    Structural consistency is the test: different addresses, same shape, and
    the constants that should be identical (magic values, vtable slots) are.
    A resolver that works on one build only is not structural.
+
 6. **Check the disassembly at the resolved address** on each build: padding
    before it, a prologue, and the matched instruction is the one you meant.
 7. **Confirm at runtime before trusting a store.** A `mov [reg+off], 1` in a
@@ -593,7 +602,7 @@ python3 tools/mkoffsets.py <decrypted.exe> [-o offsets.h] [--check] \
 ```
 
 - With no options it prints every key as `kName = 0x%08X`, then
-  `kSlot2ArgBytes`, and exits `1` if *anything* is unresolved. The CLI is
+  `kSlot2ArgBytes`, and exits `1` if _anything_ is unresolved. The CLI is
   stricter than the patcher: `OPTIONAL_OFFSETS` is a pipeline concept, so a
   missing `kPackGet` fails the CLI but not a patch.
 - `--check` compares against `BASELINE`, the known-good values for the

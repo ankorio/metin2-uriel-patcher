@@ -2,20 +2,44 @@
   "title": "Follow",
   "hint": "Shaman follows your main and re-buffs it.",
   "rows": [
-    {"type": "checkbox", "key": "TARGET_MAIN", "label": "Keep main targeted"},
-    {"type": "edit",     "key": "MAIN", "label": "Main character", "max_length": 24},
-    {"type": "separator"},
-    {"type": "label",    "text": "Distances"},
-    {"type": "slider",   "key": "CAST_DIST",   "label": "Cast range",
-                         "min": 100, "max": 2000, "step": 50},
-    {"type": "slider",   "key": "FOLLOW_DIST", "label": "Start walking at",
-                         "min": 200, "max": 3000, "step": 50},
-    {"type": "separator"},
-    {"type": "label",    "text": "Buffs"},
-    {"type": "slider",   "key": "BUFF_REFRESH_AT", "label": "Re-buff under",
-                         "min": 5, "max": 60, "step": 1, "suffix": "s"},
-    {"type": "value",    "key": "BUFF_SLOTS",   "label": "Hotbar slots"},
-    {"type": "value",    "key": "BUFF_AFFECTS", "label": "Affect ids"},
-    {"type": "button",   "label": "Revert", "action": "reset", "x": 10}
+    { "type": "checkbox", "key": "TARGET_MAIN", "label": "Keep main targeted" },
+    {
+      "type": "edit",
+      "key": "MAIN",
+      "label": "Main character",
+      "max_length": 24
+    },
+    { "type": "separator" },
+    { "type": "label", "text": "Distances" },
+    {
+      "type": "slider",
+      "key": "CAST_DIST",
+      "label": "Cast range",
+      "min": 100,
+      "max": 2000,
+      "step": 50
+    },
+    {
+      "type": "slider",
+      "key": "FOLLOW_DIST",
+      "label": "Start walking at",
+      "min": 200,
+      "max": 3000,
+      "step": 50
+    },
+    { "type": "separator" },
+    { "type": "label", "text": "Buffs" },
+    {
+      "type": "slider",
+      "key": "BUFF_REFRESH_AT",
+      "label": "Re-buff under",
+      "min": 5,
+      "max": 60,
+      "step": 1,
+      "suffix": "s"
+    },
+    { "type": "value", "key": "BUFF_SLOTS", "label": "Hotbar slots" },
+    { "type": "value", "key": "BUFF_AFFECTS", "label": "Affect ids" },
+    { "type": "button", "label": "Revert", "action": "reset", "x": 10 }
   ]
 }

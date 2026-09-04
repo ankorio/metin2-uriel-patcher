@@ -1,0 +1,28 @@
+{
+  "title": "Auto trade",
+  "hint": "Accepts an open trade once the other side's offer has stopped changing. GIVE NOTHING refuses to accept while any item or yang of ours is in the window, which makes this character receive-only - it can be handed things but can never give anything away.",
+  "rows": [
+    {
+      "type": "checkbox",
+      "key": "GIVE_NOTHING",
+      "label": "Refuse if we are giving anything"
+    },
+    {
+      "type": "slider",
+      "key": "STABLE_S",
+      "label": "Offer must hold for",
+      "min": 0.5,
+      "max": 10,
+      "step": 0.5,
+      "suffix": "s"
+    },
+    { "type": "separator" },
+    {
+      "type": "checkbox",
+      "key": "DRY_RUN",
+      "label": "Dry run (accepts nothing)"
+    },
+    { "type": "checkbox", "key": "VERBOSE", "label": "Log every offer change" },
+    { "type": "button", "label": "Revert", "action": "reset", "x": 10 }
+  ]
+}

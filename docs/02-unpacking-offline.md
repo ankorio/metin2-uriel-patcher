@@ -9,11 +9,11 @@ python tools/unuriel.py derive  triarch.exe -o profile.json
 python tools/unuriel.py rebuild triarch.exe profile.json -o triarch_clean.exe --stub-dll uriel_stub
 ```
 
-`derive` writes a JSON *profile* (key, imports, entry point). `rebuild` applies it. The split exists so that a profile can be inspected, diffed against another build, or cross-checked against a live harvest before anything is written.
+`derive` writes a JSON _profile_ (key, imports, entry point). `rebuild` applies it. The split exists so that a profile can be inspected, diffed against another build, or cross-checked against a live harvest before anything is written.
 
 ## Contents
 
-- [1. Recovering the key: the many-time-pad attack](#1-recovering-the-key-the-many-time-pad-attack)
+- [1. Recovering the key: the repeating-key XOR attack](#1-recovering-the-key-the-repeating-key xor-attack)
 - [2. Decoding the import names](#2-decoding-the-import-names)
 - [3. Groups, and which DLL each one belongs to](#3-groups-and-which-dll-each-one-belongs-to)
 - [4. Finding the original entry point by shape](#4-finding-the-original-entry-point-by-shape)
@@ -23,13 +23,13 @@ python tools/unuriel.py rebuild triarch.exe profile.json -o triarch_clean.exe --
 - [CLI reference](#cli-reference)
 - [Exercises for the reader](#exercises-for-the-reader)
 
-## 1. Recovering the key: the many-time-pad attack
+## 1. Recovering the key: the repeating-key XOR attack
 
 Function: `static_keystream(raw, pe, sample=2500)`. Feasibility test: `tools/ksattack.py`.
 
 ### Why a reused key is recoverable
 
-> **One-time pad.** XORing plaintext with a truly random key that is as long as the message and never reused is unbreakable: any plaintext is equally consistent with the ciphertext. **Many-time pad** is what you get when the key is shorter than the message and repeats. It is not merely weak — with enough ciphertext and any structure at all in the plaintext, the key falls out directly.
+> **One-time pad.** XORing plaintext with a truly random key that is as long as the message and never reused is unbreakable: any plaintext is equally consistent with the ciphertext. **Repeating-key XOR** is what you get when the key is shorter than the message and repeats. It is not merely weak, with enough ciphertext and any structure at all in the plaintext, the key can be recovered in its entirety.
 
 The protector's `.text` encryption is `C[i] = P[i] ^ K[i mod 4096]`. Fix a page offset `j` and look at that one byte across every page:
 
@@ -40,7 +40,7 @@ page 1:    C_1[j]    = P_1[j]    ^ K[j]
 page 17k:  C_17k[j]  = P_17k[j]  ^ K[j]
 ```
 
-Seventeen thousand different plaintext bytes, all XORed with the *same* unknown `K[j]`. If the plaintext bytes were uniformly random, the ciphertext bytes would be too and nothing could be learned. But the plaintext is x86 machine code, and x86 code is nothing like uniform:
+Seventeen thousand different plaintext bytes, all XORed with the _same_ unknown `K[j]`. If the plaintext bytes were uniformly random, the ciphertext bytes would be too and nothing could be learned. But the plaintext is x86 machine code, and x86 code has a finite amount of entropy:
 
 - `0x00` is by far the most common byte, roughly one byte in eight. It appears in every 32-bit immediate or displacement that is small (`mov eax, 5` is `B8 05 00 00 00`), in every `[reg+0]`-style encoding, in aligned tables, and in the zero bytes of many addresses.
 - `0xCC` (`int 3`) is what the Microsoft linker fills between functions, so it comes in runs at function boundaries.
@@ -62,7 +62,7 @@ def recover_key(text_bytes, pages):
     return bytes(key)
 ```
 
-That is essentially the whole of `static_keystream()`. The real function also samples: with `sample=2500` it takes every `total // 2500`-th page rather than all 17,000, because 2,500 votes per offset is already a landslide, and it counts *weak* offsets — those where the winning byte got fewer than one vote in twenty. That count is a diagnostic, not a correction; `derive` refuses to continue if more than 64 offsets are weak, on the theory that the file is not what we think it is.
+That is essentially the whole of `static_keystream()`. The real function also samples: with `sample=2500` it takes every `total // 2500`-th page rather than all 17,000, because 2,500 votes per offset is already a landslide, and it counts _weak_ offsets — those where the winning byte got fewer than one vote in twenty. That count is a diagnostic, not a correction; `derive` refuses to continue if more than 64 offsets are weak, on the theory that the file is not what we think it is.
 
 `tools/ksattack.py` is the original feasibility test and is worth running once. Given the encrypted exe and a known-good decrypted one it scores the recovery against ground truth, and additionally checks the assumption that the key is constant across pages (`K = C ^ P` must be the same 4096 bytes on every page it samples).
 
@@ -74,13 +74,13 @@ Measured: on the builds where a live harvest existed to compare against, the sta
 
 The figures below are drawn from a real protected build (17,695 pages of
 `.text`) by `tools/attack_figures.py`, with nothing retouched; run it on
-your own copy and you get the same pictures with your build's numbers. Read them in
+your own copy and you will get the same pictures with your build's numbers. Read them in
 order; each one answers the question the previous one raises.
 
 **1. The same key byte lands in the same column of every page.** Stack the
 pages as rows and the first 24 bytes as columns. Every cell in column `j`
 was produced as `P[page][j] XOR K[j]`, so the whole column shares one key
-byte. The rows look like noise, but look *down* a column: the same values
+byte. The rows look like noise, but look _down_ a column: the same values
 keep coming back (red boxes). Those are the pages whose plaintext byte at
 that offset was `0x00`, and `0x00 XOR K[j]` is simply `K[j]`. Counting the
 most common value in each column over all 17,695 pages gives the bottom
@@ -96,7 +96,7 @@ pages. Left: the ciphertext. One value stands far above the rest, and it is
 turns it back into plaintext. The spike moves to `0x00`; the remaining bars are
 ordinary instruction bytes (`0xFF`, `0x8B`, `0x83`, and `0xCC`, the `int3`
 byte MSVC pads between functions with). The
-ciphertext histogram is the plaintext histogram *relabelled* by the XOR;
+ciphertext histogram is the plaintext histogram _relabelled_ by the XOR;
 relabelling cannot hide which bar is tallest.
 
 ![Figure 2: histogram of ciphertext bytes at one offset, and the same after XOR with the key byte](images/02-fig2-histogram.png)
@@ -128,11 +128,11 @@ the prologue MSVC emits for almost every function — and is peppered with
 collected in one table in the [glossary](08-glossary.md#x86-byte-patterns-used-in-this-repo).) If you disassemble the bottom dump you get a real function; if
 you disassemble the top one you get nonsense that faults on the second
 instruction. That is the same test the OEP finder and the offset resolvers
-rely on later: decrypted code *looks like code*.
+rely on later: decrypted code _looks like code_.
 
 ![Figure 5: page 0 of .text as a hexdump, before and after decryption, with the prologue boxed](images/02-fig5-hexdump-before-after.png)
 
-Why a *prediction* is possible at all deserves one more sentence. Nothing
+Why a _prediction_ is possible at all deserves one more sentence. Nothing
 about the key was guessed: the attack predicts that the most frequent
 plaintext byte at any offset of a large body of x86 code is `0x00`, which
 is a fact about compilers, not about this game. Measured on the recovered
@@ -144,7 +144,7 @@ to the attacker.
 <details>
 <summary><strong>[Expand] See it yourself — recover the key on your machine</strong></summary>
 
-1. `python tools/ksattack.py triarch.exe` prints the number of pages sampled and how many offsets had a weak majority (expect 0). Pass a known-good `triarch_clean.exe` of the *same build* as a second argument and it also scores the recovery against ground truth (4096/4096).
+1. `python tools/ksattack.py triarch.exe` prints the number of pages sampled and how many offsets had a weak majority (expect 0). Pass a known-good `triarch_clean.exe` of the _same build_ as a second argument and it also scores the recovery against ground truth (4096/4096).
 
    ![Terminal running tools/ksattack.py on the protected exe: 17759 pages, 0 weak-mode offsets, wrote keystream.bin](images/01-B-ksattack.png)
 
@@ -160,11 +160,11 @@ Function: `decode_iat(raw, pe, key)`.
 
 The IAT data directory (index 12) still points at the original slot table in `.rdata`. `decode_iat` walks it four bytes at a time:
 
-| Slot value | Meaning | What the function records |
-|---|---|---|
-| `0` | End of one DLL's run | Closes the current group, starts a new one |
-| Top bit set (`0x8000xxxx`) | Import by ordinal `xxxx` | Name `"#n"` |
-| Otherwise | RVA of a hint/name entry | Decoded name |
+| Slot value                 | Meaning                  | What the function records                  |
+| -------------------------- | ------------------------ | ------------------------------------------ |
+| `0`                        | End of one DLL's run     | Closes the current group, starts a new one |
+| Top bit set (`0x8000xxxx`) | Import by ordinal `xxxx` | Name `"#n"`                                |
+| Otherwise                  | RVA of a hint/name entry | Decoded name                               |
 
 For a hint/name entry the decoding is:
 
@@ -189,6 +189,7 @@ After decoding, `derive` sanity-checks every name against an identifier alphabet
    ![PE-bear hex view on the IAT at the start of .rdata: the first entry reads 54 E4 DA 04 = RVA 0x04DAE454; the data directory shows the IAT at 0x4570000 size 0xA20](images/02-B-iat-slot.png)
 
 2. Convert that RVA to a file offset (subtract the `.rdata` RVA, add its raw pointer — here a shift of `-0x10400`, giving `0x4D9E054`) and decode it: a 16-bit length `n`, then `n` bytes XORed with `keystream.bin`.
+
    ```python
    import struct
    d = open('triarch.exe','rb').read(); k = open('keystream.bin','rb').read()
@@ -196,6 +197,7 @@ After decoding, `derive` sanity-checks every name against an identifier alphabet
    n = struct.unpack_from('<H', d, off)[0]
    print(bytes(c ^ k[i] for i, c in enumerate(d[off+2:off+2+n])))
    ```
+
    A Windows API name appears — here `b'RegFlushKey'`.
 
    ![Terminal running the decode script and printing b'RegFlushKey', with the small script open in an editor](images/02-B-decode.png)
@@ -214,7 +216,7 @@ Function: `attribute_dlls(groups, db, log)`. Table: `tools/imports_db.json`.
 
 The linker writes the IAT as one NUL-terminated run per DLL, in the same order as the import descriptors, which it sorts by DLL name. Uriel left those runs and their terminators exactly as written. On every build: **22 groups, 626 imports, 34 by ordinal**, in a 0xA20-byte table (648 slots = 626 + 22 terminators).
 
-What did *not* survive is the import descriptors — the records that say "this run belongs to `KERNEL32.dll`". Every group has a fully decoded list of function names, and no DLL name. That is the one piece of information the file genuinely no longer contains.
+What did _not_ survive is the import descriptors — the records that say "this run belongs to `KERNEL32.dll`". Every group has a fully decoded list of function names, and no DLL name. That is the one piece of information the file genuinely no longer contains.
 
 ### The lookup table
 
@@ -227,28 +229,28 @@ What did *not* survive is the import descriptors — the records that say "this 
 }
 ```
 
-It was generated once, from a live harvest (section 6): the harvest resolves each slot's runtime address to a DLL, and the DLL that wins the majority in a group is recorded against every name decoded from the on-disk table for that group. The names in the table are therefore the *original* strings the linker wrote, not the names the harvest resolved.
+It was generated once, from a live harvest (section 6): the harvest resolves each slot's runtime address to a DLL, and the DLL that wins the majority in a group is recorded against every name decoded from the on-disk table for that group. The names in the table are therefore the _original_ strings the linker wrote, not the names the harvest resolved.
 
 ### Attribution rules
 
 `attribute_dlls` works group by group:
 
 1. **Any recognised name settles the whole group.** A group is one DLL by construction, so it votes: each name known to `names` casts a vote for its DLL and the majority wins. Names in the group that the table has never seen simply **inherit** the group's DLL. `derive` reports these as "inherited" so a new build that adds imports is visible in the log.
-2. **Ordinal-only groups** (no names at all) are matched against `ordinals`: every DLL whose ordinal table contains *all* the group's ordinals is a candidate.
-3. **Ties are broken by the linker's ordering.** Descriptors are sorted by DLL name, so a group's DLL must sort *between* its neighbours' DLLs. The concrete case: a group containing only ordinal `#6` fits both `OLEAUT32.dll` (`#6` = `SysFreeString`) and `WS2_32.dll` (`#6` = `getsockname`). Whichever of the two sorts between the previous group's DLL and the next group's DLL is the answer; the other is rejected.
+2. **Ordinal-only groups** (no names at all) are matched against `ordinals`: every DLL whose ordinal table contains _all_ the group's ordinals is a candidate.
+3. **Ties are broken by the linker's ordering.** Descriptors are sorted by DLL name, so a group's DLL must sort _between_ its neighbours' DLLs. The concrete case: a group containing only ordinal `#6` fits both `OLEAUT32.dll` (`#6` = `SysFreeString`) and `WS2_32.dll` (`#6` = `getsockname`). Whichever of the two sorts between the previous group's DLL and the next group's DLL is the answer; the other is rejected.
 4. **Last resorts** for a group with names the table has never seen and no known neighbour: a prefix table (`PREFIX_DLL`: `Reg*` → ADVAPI32, `WinHttp*` → WINHTTP, ...) and, on Windows only, actually calling `GetProcAddress` against a list of candidate DLLs.
 
 If any import still has no DLL after all that, `derive` stops and tells you to regenerate the table with a live harvest.
 
 ### Why disk beats live for the names
 
-The live harvest resolves an *address* back to an *export*. That is lossy in three ways, all seen in practice:
+The live harvest resolves an _address_ back to an _export_. That is lossy in three ways, all seen in practice:
 
-| Original import (from disk) | What the live harvest reported | Why |
-|---|---|---|
-| `KERNEL32!HeapAlloc` | `ntdll!RtlAllocateHeap` | `HeapAlloc` is a **forwarder** — KERNEL32's export table says "see ntdll", so the address that lands in the slot belongs to ntdll |
-| `KERNEL32!lstrlenA` | `KERNEL32!lstrlen` | Two export names for one address; the harvest picks whichever it saw first |
-| `WS2_32!ntohl` and `WS2_32!htonl` | the same name for both | On a little-endian machine the two functions are identical code at one address |
+| Original import (from disk)       | What the live harvest reported | Why                                                                                                                               |
+| --------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `KERNEL32!HeapAlloc`              | `ntdll!RtlAllocateHeap`        | `HeapAlloc` is a **forwarder** — KERNEL32's export table says "see ntdll", so the address that lands in the slot belongs to ntdll |
+| `KERNEL32!lstrlenA`               | `KERNEL32!lstrlen`             | Two export names for one address; the harvest picks whichever it saw first                                                        |
+| `WS2_32!ntohl` and `WS2_32!htonl` | the same name for both         | On a little-endian machine the two functions are identical code at one address                                                    |
 
 A rebuilt executable that imports `RtlAllocateHeap` from ntdll runs fine, but it is not what the game was built with, and any later tool that looks for an IAT slot by name (`tools/mkoffsets.py` does exactly this) would miss. The names decoded from the on-disk hint/name entries are the linker's own, so they are what `derive` uses. The harvest's only remaining job for imports is to say which DLL a group came from, and that is captured once in the JSON table.
 
@@ -267,28 +269,28 @@ A rebuilt executable that imports `RtlAllocateHeap` from ntdll runs fine, but it
 
 Function: `find_oep(pe, text_bytes)`.
 
-With `.text` decrypted, the original entry point is somewhere in 68 MB of code with nothing pointing at it. It is found by *shape*.
+With `.text` decrypted, the original entry point is somewhere in 68 MB of code with nothing pointing at it. It is found by _shape_.
 
 > **CRT startup shape.** Programs built with recent Microsoft toolchains start in a function generated by the C runtime, not by the programmer. It is exactly two instructions: `call __security_init_cookie` then `jmp __scrt_common_main_seh`. `__security_init_cookie` initialises the stack-protector value (`__security_cookie`, a global whose address the linker records in the **load config directory**, data directory 10). `__scrt_common_main_seh` does the rest of the runtime initialisation and eventually calls `main`/`WinMain`.
 
 The finder scans the decrypted text for every 10-byte window that satisfies all of the following:
 
-| Test | Reason |
-|---|---|
-| Byte pattern `E8 rel32 E9 rel32` | `call` followed immediately by `jmp` — the two-instruction body |
-| Preceded by `0xCC` | Functions are separated by `int 3` padding, so the entry starts right after one |
-| Both targets land inside `.text` | Rules out garbage that happens to look like `E8 .. E9 ..` |
+| Test                                                        | Reason                                                                                      |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Byte pattern `E8 rel32 E9 rel32`                            | `call` followed immediately by `jmp` — the two-instruction body                             |
+| Preceded by `0xCC`                                          | Functions are separated by `int 3` padding, so the entry starts right after one             |
+| Both targets land inside `.text`                            | Rules out garbage that happens to look like `E8 .. E9 ..`                                   |
 | **The window's own address is never a call or jump target** | The entry point is reached from the loader, not from code — nothing in the program calls it |
-| The `call` target is called **exactly once** | `__security_init_cookie` is called from the entry and nowhere else |
+| The `call` target is called **exactly once**                | `__security_init_cookie` is called from the entry and nowhere else                          |
 
-Candidates are then scored. Ten points if the callee contains the single `mov [__security_cookie], ecx` store (`89 0D imm32`, where `imm32` is the address of `__security_cookie`, read from the `SecurityCookie` field of `IMAGE_LOAD_CONFIG_DIRECTORY32` — at `+0x3C` inside that structure, which the load config data directory points at; the same number as `e_lfanew` in document 01, by coincidence), one point if the `jmp` target is never *called* (only jumped to). On every build measured the finder produced 3 candidates and the highest-scoring one was the correct entry — confirmed byte-for-byte on the builds that had a known-good reference (section 7).
+Candidates are then scored. Ten points if the callee contains the single `mov [__security_cookie], ecx` store (`89 0D imm32`, where `imm32` is the address of `__security_cookie`, read from the `SecurityCookie` field of `IMAGE_LOAD_CONFIG_DIRECTORY32` — at `+0x3C` inside that structure, which the load config data directory points at; the same number as `e_lfanew` in document 01, by coincidence), one point if the `jmp` target is never _called_ (only jumped to). On every build measured the finder produced 3 candidates and the highest-scoring one was the correct entry — confirmed byte-for-byte on the builds that had a known-good reference (section 7).
 
-To build the "is this address ever a target" and "how many times is this called" sets, the finder makes one pass over all of `.text` decoding every `E8`/`E9` relative displacement. That is a crude disassembly — it will also pick up `E8` bytes that are data — but it errs on the side of *more* targets, which only makes the "never a target" test stricter, never looser.
+To build the "is this address ever a target" and "how many times is this called" sets, the finder makes one pass over all of `.text` decoding every `E8`/`E9` relative displacement. That is a crude disassembly — it will also pick up `E8` bytes that are data — but it errs on the side of _more_ targets, which only makes the "never a target" test stricter, never looser.
 
 <details>
 <summary><strong>[Expand] See it yourself — the CRT entry shape</strong></summary>
 
-1. After `rebuild`, open `triarch_clean.exe` in PE-bear → **Optional Hdr** → *Entry Point*, then **Disasm** at that RVA: `E8 xx xx xx xx` (call) immediately followed by `E9 xx xx xx xx` (jmp), with `CC` padding just before it. This is the same restored entry shown for transformation 4 in document 01:
+1. After `rebuild`, open `triarch_clean.exe` in PE-bear → **Optional Hdr** → _Entry Point_, then **Disasm** at that RVA: `E8 xx xx xx xx` (call) immediately followed by `E9 xx xx xx xx` (jmp), with `CC` padding just before it. This is the same restored entry shown for transformation 4 in document 01:
 
    ![PE-bear Disasm at the rebuilt entry point: CALL then JMP then CC padding, the MSVC CRT start-up](images/01-E-clean-crt.png)
 
@@ -312,7 +314,7 @@ With ASLR off, an address you read in the file is the address you see in a debug
 
 **[4] Group the profile's IAT into runs.** Consecutive slots with the same DLL become one descriptor. The protector's DLL (`client_x86`) is dropped — unless `--stub-dll NAME` is given, in which case its run is kept but relabelled `NAME.dll`. The patcher always passes `--stub-dll uriel_stub`: the game makes one call into the anti-cheat, `FireInTheHole`, and this makes that call land in `stub/uriel_stub.dll`, a replacement that returns a harmless object and gives the mod host a foothold in the process.
 
-**[5] Lay out a new section, `.unuriel`.** It holds: fresh import descriptors (20 bytes each, plus a zero terminator); one `OriginalFirstThunk` array per descriptor, pointing at new hint/name entries with the decoded names — or `0x80000000 | ordinal` thunks where the name is unknown; the DLL name strings; and, for the no-`--stub-dll` case, a 64-byte scratch object and a thirteen-byte in-image replacement for `FireInTheHole`. `FirstThunk` in each descriptor points back at the *original* IAT slots in `.rdata`, so compiled code, which calls through those slots, needs no change.
+**[5] Lay out a new section, `.unuriel`.** It holds: fresh import descriptors (20 bytes each, plus a zero terminator); one `OriginalFirstThunk` array per descriptor, pointing at new hint/name entries with the decoded names — or `0x80000000 | ordinal` thunks where the name is unknown; the DLL name strings; and, for the no-`--stub-dll` case, a 64-byte scratch object and a thirteen-byte in-image replacement for `FireInTheHole`. `FirstThunk` in each descriptor points back at the _original_ IAT slots in `.rdata`, so compiled code, which calls through those slots, needs no change.
 
 **[6] Redirect protector calls (no-stub case only).** When no stub DLL is supplied, every `FF 15 <slot>` call to the protector's slot is rewritten as a direct `E8` call to the in-image replacement, after checking that the call site is followed by `83 C4` (`add esp, imm8` — the cdecl stack cleanup), so that a non-cdecl call site is left alone and reported rather than corrupted.
 
@@ -332,7 +334,7 @@ flowchart LR
 <details>
 <summary><strong>[Expand] See it yourself — before and after, side by side</strong></summary>
 
-1. Open `triarch.exe` and `triarch_clean.exe` in two PE-bear windows. **Imports**: one DLL (`client_x86.dll` → `FireInTheHole`) versus the ~22 real DLLs. **Section Hdrs**: the clean one has an extra `.unuriel` section at the end and `.text` has its execute flag back. **Optional Hdr**: the entry point moved into `.text` and *DllCharacteristics* lost the *Dynamic Base* bit.
+1. Open `triarch.exe` and `triarch_clean.exe` in two PE-bear windows. **Imports**: one DLL (`client_x86.dll` → `FireInTheHole`) versus the ~22 real DLLs. **Section Hdrs**: the clean one has an extra `.unuriel` section at the end and `.text` has its execute flag back. **Optional Hdr**: the entry point moved into `.text` and _DllCharacteristics_ lost the _Dynamic Base_ bit.
 
    ![Two PE-bear windows side by side: protected triarch.exe Imports shows only client_x86.dll/FireInTheHole; rebuilt triarch_clean.exe shows ~22 DLLs (ADVAPI32 … urlmon, plus the renamed uriel_stub import) and a .unuriel section in the tree](images/02-E-before-after.png)
 
@@ -379,12 +381,12 @@ python tools/unuriel.py harvest <triarch.exe> <pid> <live_base_hex> -o profile.j
 python tools/ksattack.py <encrypted.exe> [decrypted.exe] [--pages N]
 ```
 
-| Command | Needs | Produces |
-|---|---|---|
-| `derive` | the exe; `tools/imports_db.json` (found next to the script by default) | `profile.json` with `method: "static"` |
-| `rebuild` | the exe and a profile whose `source_sha256` matches it | the clean exe; prints the sha256 of the result |
-| `harvest` | Windows, a running instance, its PID and load base | `profile.json` with vote statistics |
-| `ksattack.py` | the exe; optionally a decrypted twin for scoring | `keystream.bin`, or a score report |
+| Command       | Needs                                                                  | Produces                                       |
+| ------------- | ---------------------------------------------------------------------- | ---------------------------------------------- |
+| `derive`      | the exe; `tools/imports_db.json` (found next to the script by default) | `profile.json` with `method: "static"`         |
+| `rebuild`     | the exe and a profile whose `source_sha256` matches it                 | the clean exe; prints the sha256 of the result |
+| `harvest`     | Windows, a running instance, its PID and load base                     | `profile.json` with vote statistics            |
+| `ksattack.py` | the exe; optionally a decrypted twin for scoring                       | `keystream.bin`, or a score report             |
 
 `derive` is pure Python with no third-party dependencies and runs on any OS. The patcher (document 03) calls `derive` and `rebuild` in-process with exactly the arguments above.
 

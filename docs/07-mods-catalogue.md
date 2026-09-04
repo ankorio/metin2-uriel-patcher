@@ -28,8 +28,14 @@ client.
   - [unstick](#unstick)
   - [nocollide](#nocollide)
   - [entscan](#entscan)
+  - [bossscanner](#bossscanner)
   - [autologin](#autologin)
   - [shoppos](#shoppos)
+  - [autotrade](#autotrade)
+  - [autodonatexp](#autodonatexp)
+  - [ribfarmer](#ribfarmer)
+  - [orcfarmer](#orcfarmer)
+  - [automonkey](#automonkey)
 - Infrastructure
   - [modui](#modui)
 - Diagnostics and examples
@@ -46,29 +52,35 @@ client.
 
 ## Summary table
 
-| Mod | Category | Default enabled (`mods/config.json`) | Needs natives | `ui.json` |
-|---|---|---|---|---|
-| `autohunt2` | combat automation | **yes** | yes (drive; degrades without) | yes |
-| `autoloot` | pickup | **yes** | for `WANTED` filtering, fetch and kill trigger; plain mode works without | yes |
-| `modui` | manager window | **yes** | no | yes |
-| `autologin` | session | no | no | no |
-| `chanswap` | session | no | no | no |
-| `entscan` | minimap | no | optional (`minimap_mark` for mob dots) | yes |
-| `fishing` | automation | no | yes (`fishing_poll`) | no |
-| `follow` | movement | no | no | yes |
-| `goto` | movement | no | no | no |
-| `keeproute` | movement | no | yes (fields) | yes |
-| `lootdiag` | diagnostic | no | yes | no |
-| `mobdiag` | diagnostic | no | yes | no |
-| `nocollide` | movement | no | yes (`actor_pass`, fields) | yes |
-| `posinfo` | example / diagnostic | no | no | yes |
-| `routes` | travel scripting | no | yes (fields) | yes |
-| `shoppos` | data export | no (inert until `URL` set) | yes (`offline_shops`, `http_post`) | no |
-| `unstick` | movement | no | no | yes |
-| `apidiag` | diagnostic | no (ships an explicit `"enabled": false` section) | no | no |
-| `nativeprobe` | diagnostic | no (ships an explicit `"enabled": false` section) | yes | no |
-| `probe_ui` | diagnostic | no (ships an explicit `"enabled": false` section) | no | no |
-| `uispy` | diagnostic | no (ships an explicit `"enabled": false` section) | no | no |
+| Mod            | Category             | Default enabled (`mods/config.json`)              | Needs natives                                                            | `ui.json` |
+| -------------- | -------------------- | ------------------------------------------------- | ------------------------------------------------------------------------ | --------- |
+| `autohunt2`    | combat automation    | **yes**                                           | yes (drive; degrades without)                                            | yes       |
+| `autoloot`     | pickup               | **yes**                                           | for `WANTED` filtering, fetch and kill trigger; plain mode works without | yes       |
+| `modui`        | manager window       | **yes**                                           | no                                                                       | yes       |
+| `autologin`    | session              | no                                                | no                                                                       | no        |
+| `chanswap`     | session              | no                                                | no                                                                       | no        |
+| `entscan`      | minimap              | no                                                | optional (`minimap_mark` for mob dots)                                   | yes       |
+| `fishing`      | automation           | no                                                | yes (`fishing_poll`)                                                     | no        |
+| `follow`       | movement             | no                                                | no                                                                       | yes       |
+| `goto`         | movement             | no                                                | no                                                                       | no        |
+| `keeproute`    | movement             | no                                                | yes (fields)                                                             | yes       |
+| `lootdiag`     | diagnostic           | no                                                | yes                                                                      | no        |
+| `mobdiag`      | diagnostic           | no                                                | yes                                                                      | no        |
+| `nocollide`    | movement             | no                                                | yes (`actor_pass`, fields)                                               | yes       |
+| `posinfo`      | example / diagnostic | no                                                | no                                                                       | yes       |
+| `routes`       | travel scripting     | no                                                | yes (fields)                                                             | yes       |
+| `shoppos`      | data export          | no (inert until `URL` set)                        | yes (`offline_shops`, `http_post`)                                       | no        |
+| `unstick`      | movement             | no                                                | no                                                                       | yes       |
+| `apidiag`      | diagnostic           | no (ships an explicit `"enabled": false` section) | no                                                                       | no        |
+| `nativeprobe`  | diagnostic           | no (ships an explicit `"enabled": false` section) | yes                                                                      | no        |
+| `probe_ui`     | diagnostic           | no (ships an explicit `"enabled": false` section) | no                                                                       | no        |
+| `uispy`        | diagnostic           | no (ships an explicit `"enabled": false` section) | no                                                                       | no        |
+| `bossscanner`  | minimap              | no                                                | optional (`mark_mob` preferred; falls back to `atlas_mark`)              | no        |
+| `autotrade`    | trade                | no                                                | no (drives the client's `exchange` module + `SendExchangeAcceptPacket`)  | yes       |
+| `autodonatexp` | guild                | no (also gated by `ARMED` module flag)            | no (drives `SendGuildOfferPacket`)                                       | no        |
+| `ribfarmer`    | farm preset          | no                                                | inherits `autohunt2` / `autoloot` needs                                  | yes       |
+| `orcfarmer`    | farm preset          | no                                                | inherits `autohunt2` / `autoloot` needs                                  | yes       |
+| `automonkey`   | dungeon loop         | no (also gated by `ONLY_CHARACTER`)               | uses `drop_engagement` from the stub; degrades otherwise                 | no        |
 
 ## A note on default enablement
 
@@ -81,9 +93,24 @@ sections for the four diagnostic probes (`apidiag`, `nativeprobe`,
 can acquire a target and walk to it. A mod that disabled terrain collision
 used to live here too; it was removed because terrain pass-through is
 visible to the server (the client reports its own position several times a
-second), and the framework's rule is that nothing server-visible ships. When
-you add a mod, give it a section with `"enabled": false` first and turn it on
-per character in a profile.
+second), and the framework's rule is that nothing server-visible ships.
+When you add a mod, give it a section with `"enabled": false` first and turn
+it on per character in a profile.
+
+Two of the mods added in this pass carry a SECOND safety catch on top of
+`enabled`, because the mod can act irreversibly on a live character:
+
+- `autodonatexp` refuses to send anything until `ARMED = True`. It spends
+  the character's own experience irreversibly, so being loaded is
+  deliberately NOT enough.
+- `automonkey` refuses to run unless `ONLY_CHARACTER` matches the logged-in
+  character. It moves the character and starts a hunt; picking up the wrong
+  profile is both surprising and hard to notice, so the guard is opt-in.
+
+`ribfarmer` and `orcfarmer` are mutually exclusive with each other and with
+a directly-loaded `autohunt2` or `autoloot` — each checks the effective
+config at load, names the mod in the way, and stands down without disabling
+anyone.
 
 ---
 
@@ -132,29 +159,29 @@ now)` for skills. `autohunt2` calls both through `api.player.*` (natives from
 **Config keys** (the important ones; the file declares 95 module constants
 and comments each):
 
-| Key | Type | Default | Meaning |
-|---|---|---|---|
-| `AUTOSTART`, `AUTOSTART_AFTER` | bool, s | `False`, `6.0` | Start without the button (test mode; the button is the normal trigger). |
-| `WALK_STATE` | int | `0x8A` | Build constant stamped by the patcher; never pin in a profile. |
-| `HUNT_STONES` | bool/None | `None` | `None` = the window owns the "stones only" choice. |
-| `HUNT_RANGE` | float/None | `300.0` | Search radius slider value; radius = `(v + 80) * 35` units. `None` = leave the slider alone. |
-| `USE_SKILLS` | bool | `True` | Drive `UseAutoSkills`. |
-| `SKILLS_WHILE_MOUNTED` | bool | `True` | Let the client dismount → cast → remount. Uncheck on characters that cannot attack mounted. |
-| `MOUNT_ONLY_ON_STONES` | bool | `False` | Remount only while the objective is a stone. |
-| `BOSS_RACES`, `METIN_RACES`, `TRASH_RACES` | list of int or name | `[]` | The three tiers. Names resolve through `nonplayer.GetMonsterDataByNamePart`, cached per load. |
-| `METIN_ANY_STONE` | bool | `False` | Seek anything the client flags `IsStone`, not just listed races. |
-| `TRASH_RANGE` | units | `3000.0` | How close a tier-3 mob must be to be preferred. |
-| `ONLY_BOSSES`, `ONLY_METINS` | bool | `False` | Stop seeking trash (a fight in progress still finishes). |
-| `METIN_SWEEP`, `METIN_SWEEP_EVERY_S`, `METIN_SWEEP_DUR_S`, `METIN_SWEEP_RANGE`, `METIN_SWEEP_MOUNTED` | | `True`, `15.0`, `2.0`, `250.0`, `False` | The rear sweep. |
-| `BOSS_RANGE`, `METIN_RANGE`, `BOSS_REACH`, `BOSS_GIVEUP_S` | units, s | `8000.0`, `0.0` (no cap), `700.0`, `0.0` (never) | Seek-tier distances. |
-| `BLOCK_AFTER_S`, `BLOCK_MOVE`, `BLOCK_REACH`, `APPROACH_DIST`, `EXCLUDE_S` | | `1.0`, `30.0`, `250.0`, `800.0`, `6.0` | Body-block detector. |
-| `AVOID_CONTESTED`, `AVOID_WHEN_STONES`, `PLAYER_NEAR_ME`, `CONTEST_RADIUS`, `THREAT_DWELL_S`, `SAFE_DIST`, `SAFE_DIST_MIN`, `MAX_DRIFT`, `RELOCATE_COOLDOWN_S`, `RELOCATE_FIGHT_ALONG`, `CONTEST_DEBUG` | | `True`, `False`, `1500.0`, `1200.0`, `1.5`, `2500.0`, `1500.0`, `6000.0`, `25.0`, `False`, `True` | Player avoidance and relocation. |
-| `LOOP_CHANNELS`, `LOOP_IDLE_S`, `LOOP_SETTLE_S` | | `False`, `10.0`, `15.0` | Hop channels when the area is empty (needs `chanswap`). |
-| `SHOW_RANGE` | bool | `True` | Show the client's own hunt-area circle on the minimap. |
-| `REVIVE`, `REVIVE_CMD`, `REVIVE_AFTER_S`, `REVIVE_EVERY_S`, `RESUME_AFTER_S` | | `True`, `"/restart_here"`, `10.0`, `6.0`, `5.0` | Auto-revive with the same command the revive button sends. |
-| `WATCH_CHAT` | bool | `True` | Install the `/auto_hunt` interceptor (the start trigger). |
-| `UI_DETOUR` | bool | `False` | Also patch the autohunt window's Start button at class level; off because whether it takes effect depends on construction order. |
-| `VERBOSE` | bool | `True` | |
+| Key                                                                                                                                                                                                     | Type                | Default                                                                                           | Meaning                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTOSTART`, `AUTOSTART_AFTER`                                                                                                                                                                          | bool, s             | `False`, `6.0`                                                                                    | Start without the button (test mode; the button is the normal trigger).                                                          |
+| `WALK_STATE`                                                                                                                                                                                            | int                 | `0x8A`                                                                                            | Build constant stamped by the patcher; never pin in a profile.                                                                   |
+| `HUNT_STONES`                                                                                                                                                                                           | bool/None           | `None`                                                                                            | `None` = the window owns the "stones only" choice.                                                                               |
+| `HUNT_RANGE`                                                                                                                                                                                            | float/None          | `300.0`                                                                                           | Search radius slider value; radius = `(v + 80) * 35` units. `None` = leave the slider alone.                                     |
+| `USE_SKILLS`                                                                                                                                                                                            | bool                | `True`                                                                                            | Drive `UseAutoSkills`.                                                                                                           |
+| `SKILLS_WHILE_MOUNTED`                                                                                                                                                                                  | bool                | `True`                                                                                            | Let the client dismount → cast → remount. Uncheck on characters that cannot attack mounted.                                      |
+| `MOUNT_ONLY_ON_STONES`                                                                                                                                                                                  | bool                | `False`                                                                                           | Remount only while the objective is a stone.                                                                                     |
+| `BOSS_RACES`, `METIN_RACES`, `TRASH_RACES`                                                                                                                                                              | list of int or name | `[]`                                                                                              | The three tiers. Names resolve through `nonplayer.GetMonsterDataByNamePart`, cached per load.                                    |
+| `METIN_ANY_STONE`                                                                                                                                                                                       | bool                | `False`                                                                                           | Seek anything the client flags `IsStone`, not just listed races.                                                                 |
+| `TRASH_RANGE`                                                                                                                                                                                           | units               | `3000.0`                                                                                          | How close a tier-3 mob must be to be preferred.                                                                                  |
+| `ONLY_BOSSES`, `ONLY_METINS`                                                                                                                                                                            | bool                | `False`                                                                                           | Stop seeking trash (a fight in progress still finishes).                                                                         |
+| `METIN_SWEEP`, `METIN_SWEEP_EVERY_S`, `METIN_SWEEP_DUR_S`, `METIN_SWEEP_RANGE`, `METIN_SWEEP_MOUNTED`                                                                                                   |                     | `True`, `15.0`, `2.0`, `250.0`, `False`                                                           | The rear sweep.                                                                                                                  |
+| `BOSS_RANGE`, `METIN_RANGE`, `BOSS_REACH`, `BOSS_GIVEUP_S`                                                                                                                                              | units, s            | `8000.0`, `0.0` (no cap), `700.0`, `0.0` (never)                                                  | Seek-tier distances.                                                                                                             |
+| `BLOCK_AFTER_S`, `BLOCK_MOVE`, `BLOCK_REACH`, `APPROACH_DIST`, `EXCLUDE_S`                                                                                                                              |                     | `1.0`, `30.0`, `250.0`, `800.0`, `6.0`                                                            | Body-block detector.                                                                                                             |
+| `AVOID_CONTESTED`, `AVOID_WHEN_STONES`, `PLAYER_NEAR_ME`, `CONTEST_RADIUS`, `THREAT_DWELL_S`, `SAFE_DIST`, `SAFE_DIST_MIN`, `MAX_DRIFT`, `RELOCATE_COOLDOWN_S`, `RELOCATE_FIGHT_ALONG`, `CONTEST_DEBUG` |                     | `True`, `False`, `1500.0`, `1200.0`, `1.5`, `2500.0`, `1500.0`, `6000.0`, `25.0`, `False`, `True` | Player avoidance and relocation.                                                                                                 |
+| `LOOP_CHANNELS`, `LOOP_IDLE_S`, `LOOP_SETTLE_S`                                                                                                                                                         |                     | `False`, `10.0`, `15.0`                                                                           | Hop channels when the area is empty (needs `chanswap`).                                                                          |
+| `SHOW_RANGE`                                                                                                                                                                                            | bool                | `True`                                                                                            | Show the client's own hunt-area circle on the minimap.                                                                           |
+| `REVIVE`, `REVIVE_CMD`, `REVIVE_AFTER_S`, `REVIVE_EVERY_S`, `RESUME_AFTER_S`                                                                                                                            |                     | `True`, `"/restart_here"`, `10.0`, `6.0`, `5.0`                                                   | Auto-revive with the same command the revive button sends.                                                                       |
+| `WATCH_CHAT`                                                                                                                                                                                            | bool                | `True`                                                                                            | Install the `/auto_hunt` interceptor (the start trigger).                                                                        |
+| `UI_DETOUR`                                                                                                                                                                                             | bool                | `False`                                                                                           | Also patch the autohunt window's Start button at class level; off because whether it takes effect depends on construction order. |
+| `VERBOSE`                                                                                                                                                                                               | bool                | `True`                                                                                            |                                                                                                                                  |
 
 `mods/config.json` ships `WALK_STATE: 138`, empty race lists and
 `TRASH_RANGE: 3000.0`; `patcher/config.example.json` shows a fuller example
@@ -206,18 +233,18 @@ loot. Three modes:
 
 **Config keys.**
 
-| Key | Type | Default | Meaning |
-|---|---|---|---|
-| `TRIGGER_ON_KILL`, `KILL_DELAY`, `KILL_SWEEPS`, `KILL_SPACING` | bool, s, int, s | `True`, `0.6`, `2`, `1.2` | Kill-edge sweeps. |
-| `IDLE_INTERVAL`, `IDLE_JITTER` | s | `8.0`, `3.0` | Fallback sweep, period randomised ± jitter. |
-| `LEGACY_MODE`, `LEGACY_INTERVAL`, `SPAM_PICKUP`, `SPAM_INTERVAL`, `INTERVAL` | | `False`, `0.5`, `False`, `0.5`, `0.5` | Legacy loop and its back-compat names. |
-| `TAKE_ITEMS`, `TAKE_MONEY` | bool | `True` | |
-| `WANTED` | list | `[]` | Allow-list of vnums / name fragments. Empty = take everything. |
-| `NAME_MIN_LEN` | int | `4` | Fragments shorter than this match whole words only. |
-| `IGNORED_LOGGED` | bool | `True` | Log once per vnum what is being left behind. |
-| `SET_CLIENT_FLAG` | bool | `True` | Turn on the client's own AUTO_PICK option so the options window agrees. |
-| `FETCH_WANTED`, `FETCH_RANGE`, `FETCH_ARRIVE`, `FETCH_TIMEOUT_S`, `FETCH_SPEED`, `FETCH_REPATH_S`, `FETCH_PROGRESS`, `FETCH_COOLDOWN_S`, `FETCH_RETRY_S`, `FETCH_HOLD_S`, `FETCH_WHILE_FIGHTING` | | `True`, `3000.0`, `700.0`, `10.0`, `250.0`, `3.0`, `150.0`, `1.5`, `45.0`, `3.0`, `True` | Walking to out-of-range listed drops. |
-| `VERBOSE` | bool | `False` | Log every sweep. |
+| Key                                                                                                                                                                                              | Type            | Default                                                                                  | Meaning                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `TRIGGER_ON_KILL`, `KILL_DELAY`, `KILL_SWEEPS`, `KILL_SPACING`                                                                                                                                   | bool, s, int, s | `True`, `0.6`, `2`, `1.2`                                                                | Kill-edge sweeps.                                                       |
+| `IDLE_INTERVAL`, `IDLE_JITTER`                                                                                                                                                                   | s               | `8.0`, `3.0`                                                                             | Fallback sweep, period randomised ± jitter.                             |
+| `LEGACY_MODE`, `LEGACY_INTERVAL`, `SPAM_PICKUP`, `SPAM_INTERVAL`, `INTERVAL`                                                                                                                     |                 | `False`, `0.5`, `False`, `0.5`, `0.5`                                                    | Legacy loop and its back-compat names.                                  |
+| `TAKE_ITEMS`, `TAKE_MONEY`                                                                                                                                                                       | bool            | `True`                                                                                   |                                                                         |
+| `WANTED`                                                                                                                                                                                         | list            | `[]`                                                                                     | Allow-list of vnums / name fragments. Empty = take everything.          |
+| `NAME_MIN_LEN`                                                                                                                                                                                   | int             | `4`                                                                                      | Fragments shorter than this match whole words only.                     |
+| `IGNORED_LOGGED`                                                                                                                                                                                 | bool            | `True`                                                                                   | Log once per vnum what is being left behind.                            |
+| `SET_CLIENT_FLAG`                                                                                                                                                                                | bool            | `True`                                                                                   | Turn on the client's own AUTO_PICK option so the options window agrees. |
+| `FETCH_WANTED`, `FETCH_RANGE`, `FETCH_ARRIVE`, `FETCH_TIMEOUT_S`, `FETCH_SPEED`, `FETCH_REPATH_S`, `FETCH_PROGRESS`, `FETCH_COOLDOWN_S`, `FETCH_RETRY_S`, `FETCH_HOLD_S`, `FETCH_WHILE_FIGHTING` |                 | `True`, `3000.0`, `700.0`, `10.0`, `250.0`, `3.0`, `150.0`, `1.5`, `45.0`, `3.0`, `True` | Walking to out-of-range listed drops.                                   |
+| `VERBOSE`                                                                                                                                                                                        | bool            | `False`                                                                                  | Log every sweep.                                                        |
 
 **UI page.** `TAKE_ITEMS`, `TAKE_MONEY`, `LEGACY_MODE` + `LEGACY_INTERVAL`,
 `TRIGGER_ON_KILL`, `IDLE_INTERVAL`, `SET_CLIENT_FLAG`, `VERBOSE`, Revert.
@@ -259,22 +286,22 @@ own wrapper).
 
 **Config keys** (46 constants; the main ones):
 
-| Key | Default | Meaning |
-|---|---|---|
-| `ARM_KEY` | `63` (DIK_F5) | Toggle key; read from `app` at runtime, this is the fallback. |
-| `CAST_METHOD`, `REEL_METHOD` | `"skill"` | `"space"` selects the legacy `api.key_event` path, which did not reach the game on the measured client. |
-| `FISH_SKILL_ID`, `FISH_SKILL_SLOT`, `SKILL_SCAN_MAX` | `123`, `-1`, `160` | Skill resolution. |
-| `HOLD_S` | `0.2` | Legacy key hold. |
-| `USE_BOLA`, `BOLA_VNUM`, `BOLA_AFFECT`, `BOLA_REFRESH`, `BOLA_CHECK_S` | `True`, `27610`, `208`, `120.0`, `5.0` | Keep the fish-info consumable up (affect 208, measured 20 min). |
-| `USE_FISH`, `FISH_ITEM_TYPE`, `USEFISH_MAX`, `USEFISH_CHECK_S` | `True`, `12`, `4`, `2.0` | Open caught fish, rate-capped. |
-| `USE_BAIT`, `BAIT_VNUMS`, `BAIT_SETTLE`, `MIN_BAIT_GAP` | `True`, `[27802, 27801]`, `0.5`, `5.0` | Bait the rod before each round; pause if none held. |
-| `MIN_BITE_DELAY`, `CAST_CONFIRM_S`, `FISH_TIMEOUT`, `REEL_TIMEOUT`, `RECAST_DELAY` | `1.5`, `3.0`, `55.0`, `10.0`, `3.5` | Loop timing. |
-| `ROD_ADJUST`, `PIPELINE_LAG`, `DEFAULT_DELAY`, `ITEM_DELAY`, `FISH_BASE` | `0.225`, `0.30`, `2.5`, `2.15`, table | Reel-delay model. |
-| `SKIP_JUNK`, `JUNK_GRACE` | `True`, `0.6` | Junk bites are uncatchable; reel at once to resolve the line. |
-| `FAIL_LIMIT`, `FAIL_BACKOFF`, `NOREEL_AFTER_S`, `NOREEL_LIMIT` | `4`, `20.0`, `2.0`, `3` | Dead-cast and no-reel detection with backoff. |
-| `STUDY_LOG`, `STUDY_SWEEP`, `LOCKED_VNUMS`, `SWEEP_OFF` | `True`, `True`, set, list | Timing study. |
-| `AUTOARM`, `AUTOARM_AFTER` | `False`, `5.0` | Arm without F5, once per load. Profile-only by convention. |
-| `DEBUG_KEYS` | `False` | Log every key code. |
+| Key                                                                                | Default                                | Meaning                                                                                                 |
+| ---------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `ARM_KEY`                                                                          | `63` (DIK_F5)                          | Toggle key; read from `app` at runtime, this is the fallback.                                           |
+| `CAST_METHOD`, `REEL_METHOD`                                                       | `"skill"`                              | `"space"` selects the legacy `api.key_event` path, which did not reach the game on the measured client. |
+| `FISH_SKILL_ID`, `FISH_SKILL_SLOT`, `SKILL_SCAN_MAX`                               | `123`, `-1`, `160`                     | Skill resolution.                                                                                       |
+| `HOLD_S`                                                                           | `0.2`                                  | Legacy key hold.                                                                                        |
+| `USE_BOLA`, `BOLA_VNUM`, `BOLA_AFFECT`, `BOLA_REFRESH`, `BOLA_CHECK_S`             | `True`, `27610`, `208`, `120.0`, `5.0` | Keep the fish-info consumable up (affect 208, measured 20 min).                                         |
+| `USE_FISH`, `FISH_ITEM_TYPE`, `USEFISH_MAX`, `USEFISH_CHECK_S`                     | `True`, `12`, `4`, `2.0`               | Open caught fish, rate-capped.                                                                          |
+| `USE_BAIT`, `BAIT_VNUMS`, `BAIT_SETTLE`, `MIN_BAIT_GAP`                            | `True`, `[27802, 27801]`, `0.5`, `5.0` | Bait the rod before each round; pause if none held.                                                     |
+| `MIN_BITE_DELAY`, `CAST_CONFIRM_S`, `FISH_TIMEOUT`, `REEL_TIMEOUT`, `RECAST_DELAY` | `1.5`, `3.0`, `55.0`, `10.0`, `3.5`    | Loop timing.                                                                                            |
+| `ROD_ADJUST`, `PIPELINE_LAG`, `DEFAULT_DELAY`, `ITEM_DELAY`, `FISH_BASE`           | `0.225`, `0.30`, `2.5`, `2.15`, table  | Reel-delay model.                                                                                       |
+| `SKIP_JUNK`, `JUNK_GRACE`                                                          | `True`, `0.6`                          | Junk bites are uncatchable; reel at once to resolve the line.                                           |
+| `FAIL_LIMIT`, `FAIL_BACKOFF`, `NOREEL_AFTER_S`, `NOREEL_LIMIT`                     | `4`, `20.0`, `2.0`, `3`                | Dead-cast and no-reel detection with backoff.                                                           |
+| `STUDY_LOG`, `STUDY_SWEEP`, `LOCKED_VNUMS`, `SWEEP_OFF`                            | `True`, `True`, set, list              | Timing study.                                                                                           |
+| `AUTOARM`, `AUTOARM_AFTER`                                                         | `False`, `5.0`                         | Arm without F5, once per load. Profile-only by convention.                                              |
+| `DEBUG_KEYS`                                                                       | `False`                                | Log every key code.                                                                                     |
 
 **UI page.** None; configure in the file or a profile.
 
@@ -316,15 +343,15 @@ channels) and, with `FOLLOW_CHANNEL`, requests a swap via
 
 **Config keys.**
 
-| Key | Default | Meaning |
-|---|---|---|
-| `MAIN` | `""` | **Required.** The main character's name. Deliberately not auto-detected (two clients would chase each other) and deliberately not baked into the file. |
-| `CAST_DIST`, `FOLLOW_DIST` | `600.0`, `900.0` | Hold inside the first; start walking outside the second. |
-| `REPATH_MOVE`, `REPATH_FRAC`, `ARRIVE_DIST`, `STUCK_S` | `300.0`, `0.25`, `250.0`, `4.0` | Re-path rules. |
-| `PUBLISH_S` | `0.5` | Link publish rate. |
-| `FOLLOW_CHANNEL`, `CHAN_SETTLE_S`, `CHAN_FOLLOW_DELAY` | `False`, `15.0`, `30.0` | Auto channel-join via `chanswap`. |
-| `TARGET_MAIN`, `RETARGET_S` | `True`, `3.0` | Keep the main selected. |
-| `BUFF_SLOTS`, `BUFF_AFFECTS`, `BUFF_REFRESH_AT`, `BUFF_PERIOD`, `BUFF_GAP` | `[0,1,2]`, `[94,95,96]`, `15.0`, `55.0`, `2.5` | Hotbar slots to press, affect indices to watch, thresholds. |
+| Key                                                                        | Default                                        | Meaning                                                                                                                                                |
+| -------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MAIN`                                                                     | `""`                                           | **Required.** The main character's name. Deliberately not auto-detected (two clients would chase each other) and deliberately not baked into the file. |
+| `CAST_DIST`, `FOLLOW_DIST`                                                 | `600.0`, `900.0`                               | Hold inside the first; start walking outside the second.                                                                                               |
+| `REPATH_MOVE`, `REPATH_FRAC`, `ARRIVE_DIST`, `STUCK_S`                     | `300.0`, `0.25`, `250.0`, `4.0`                | Re-path rules.                                                                                                                                         |
+| `PUBLISH_S`                                                                | `0.5`                                          | Link publish rate.                                                                                                                                     |
+| `FOLLOW_CHANNEL`, `CHAN_SETTLE_S`, `CHAN_FOLLOW_DELAY`                     | `False`, `15.0`, `30.0`                        | Auto channel-join via `chanswap`.                                                                                                                      |
+| `TARGET_MAIN`, `RETARGET_S`                                                | `True`, `3.0`                                  | Keep the main selected.                                                                                                                                |
+| `BUFF_SLOTS`, `BUFF_AFFECTS`, `BUFF_REFRESH_AT`, `BUFF_PERIOD`, `BUFF_GAP` | `[0,1,2]`, `[94,95,96]`, `15.0`, `55.0`, `2.5` | Hotbar slots to press, affect indices to watch, thresholds.                                                                                            |
 
 **UI page.** `TARGET_MAIN`, `MAIN` edit box, `CAST_DIST`, `FOLLOW_DIST`,
 `BUFF_REFRESH_AT`, read-only `BUFF_SLOTS` / `BUFF_AFFECTS`, Revert.
@@ -371,15 +398,15 @@ hop channels on its own. Commands are typed in chat and swallowed at
 
 **Config keys.**
 
-| Key | Default | Meaning |
-|---|---|---|
-| `WALK_STATE` | `138` | Build constant, stamped by the patcher. |
-| `ARRIVE_DIST`, `REISSUE_S`, `STUCK_S`, `MIN_PROGRESS`, `SIDESTEP`, `MAX_STUCK_TRIES`, `LEG_TIMEOUT_S` | `250.0`, `3.0`, `4.0`, `60.0`, `1100.0`, `4`, `180.0` | Walking. |
-| `CHANNEL_TIMEOUT_S`, `WARP_TIMEOUT_S`, `SETTLE_S` | `60.0`, `90.0`, `3.0` | Channel/map transitions. |
-| `HUNT_IDLE_S`, `HUNT_IDLE_NOCLEAR_S`, `HUNT_MAX_S`, `HUNT_START_TIMEOUT_S`, `TASK_START_TIMEOUT_S` | `6.0`, `20.0`, `0.0`, `8.0`, `8.0` | Hunting/task stops. |
-| `AUTORUN` | `""` | Route to start once per load, 5 s after entering the world. Use a profile. |
-| `ROUTES` | `{}` | Routes in config; `routes.json` entries override by name. |
-| `CMD`, `SCALE_BELOW`, `STORE`, `VERBOSE` | `"/route"`, `20000.0`, `"routes.json"`, `True` | |
+| Key                                                                                                   | Default                                               | Meaning                                                                    |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| `WALK_STATE`                                                                                          | `138`                                                 | Build constant, stamped by the patcher.                                    |
+| `ARRIVE_DIST`, `REISSUE_S`, `STUCK_S`, `MIN_PROGRESS`, `SIDESTEP`, `MAX_STUCK_TRIES`, `LEG_TIMEOUT_S` | `250.0`, `3.0`, `4.0`, `60.0`, `1100.0`, `4`, `180.0` | Walking.                                                                   |
+| `CHANNEL_TIMEOUT_S`, `WARP_TIMEOUT_S`, `SETTLE_S`                                                     | `60.0`, `90.0`, `3.0`                                 | Channel/map transitions.                                                   |
+| `HUNT_IDLE_S`, `HUNT_IDLE_NOCLEAR_S`, `HUNT_MAX_S`, `HUNT_START_TIMEOUT_S`, `TASK_START_TIMEOUT_S`    | `6.0`, `20.0`, `0.0`, `8.0`, `8.0`                    | Hunting/task stops.                                                        |
+| `AUTORUN`                                                                                             | `""`                                                  | Route to start once per load, 5 s after entering the world. Use a profile. |
+| `ROUTES`                                                                                              | `{}`                                                  | Routes in config; `routes.json` entries override by name.                  |
+| `CMD`, `SCALE_BELOW`, `STORE`, `VERBOSE`                                                              | `"/route"`, `20000.0`, `"routes.json"`, `True`        |                                                                            |
 
 **UI page.** `AUTORUN` (read-only), `ARRIVE_DIST`, `STUCK_S`, `SIDESTEP`,
 `HUNT_IDLE_S`, `HUNT_MAX_S`, `VERBOSE`, Revert.
@@ -467,7 +494,7 @@ WALK_STATE`).
 **UI page.** `RESUME_EVERY`, `RESUME_LIMIT`, `VERBOSE`, Revert.
 
 **Limitations.** Needs api v18 and the field layer. A deliberate cancel
-*while* fighting is ambiguous and resolves as "resume" — hence the limit.
+_while_ fighting is ambiguous and resolves as "resume" — hence the limit.
 
 **What it teaches.** Making a decision once, from engine state, at the moment
 it is decidable; never inventing a destination.
@@ -509,7 +536,7 @@ burned two tries per stall) and its fix.
 **Purpose.** Walk through monsters while travelling to a waypoint. Terrain
 still stops you. Metin stones always keep their collision.
 
-**How it works.** Monsters body-block by *displacement*: the engine pushes
+**How it works.** Monsters body-block by _displacement_: the engine pushes
 you back out of each nearby actor every frame. The engine's actor test is a
 race whitelist with two exempt ranges; `api.actor_pass(on, (lo, hi))` widens
 them, leaving the `SOLID_RACES` band solid — the mechanism mounts already
@@ -524,14 +551,14 @@ inside `SOLID_RACES` and complains if not.
 
 **Config keys.**
 
-| Key | Default | Meaning |
-|---|---|---|
-| `NO_TERRAIN` | `False` | Walls too. Not safe; see the framework chapter, section 6. |
-| `SOLID_RACES` | `[8000, 8999]` | Race band kept solid (stones sit at 8005 on the measured server). `[]` makes stones passable too. |
-| `ONLY_ON_WAYPOINT` | `True` | Pass through only while walking to a waypoint. |
-| `WALK_STATE` | `0x8A` | Build constant. |
-| `VERBOSE` | `True` | |
-| `DEBUG`, `DEBUG_S` | `True` in source (`False` in `mods/config.json`), `3.0` | Log raw engine state every `DEBUG_S`. |
+| Key                | Default                                                 | Meaning                                                                                           |
+| ------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `NO_TERRAIN`       | `False`                                                 | Walls too. Not safe; see the framework chapter, section 6.                                        |
+| `SOLID_RACES`      | `[8000, 8999]`                                          | Race band kept solid (stones sit at 8005 on the measured server). `[]` makes stones passable too. |
+| `ONLY_ON_WAYPOINT` | `True`                                                  | Pass through only while walking to a waypoint.                                                    |
+| `WALK_STATE`       | `0x8A`                                                  | Build constant.                                                                                   |
+| `VERBOSE`          | `True`                                                  |                                                                                                   |
+| `DEBUG`, `DEBUG_S` | `True` in source (`False` in `mods/config.json`), `3.0` | Log raw engine state every `DEBUG_S`.                                                             |
 
 **UI page.** `ONLY_ON_WAYPOINT`, `SOLID_RACES` read-only, `VERBOSE`, `DEBUG`,
 a red warning block, and the `NO_TERRAIN` checkbox last.
@@ -542,7 +569,7 @@ a red warning block, and the `NO_TERRAIN` checkbox last.
 field layer; without the fields it holds state and warns to restart the
 client (the `.ini` is read once at DLL load).
 
-**What it teaches.** The difference between a *stop* and a *displacement*;
+**What it teaches.** The difference between a _stop_ and a _displacement_;
 separating two risks into two switches; never treating "cannot read" as
 "false"; restoring global state on every exit path.
 
@@ -581,13 +608,68 @@ clobber each other's marks.
 
 ---
 
+## bossscanner
+
+**Purpose.** Ping every monster the client would draw with an ORANGE name —
+bosses, kings and the whole "special" class — without a hand-maintained name
+list. Complements `entscan`, which matches by localised name.
+
+**How it works.** Special is decided from **two sources**, unioned at load
+from the running client:
+
+- **Rank** — `nonplayer.GetGradeByVID` returning `4` (BOSS) or `5` (KING). The
+  docstring names a trap: metin stones and NPCs also read `5`, so the rank
+  test is applied only when `pack_chr.GetInstanceType(vid)` matches
+  `INSTANCE_TYPE_ENEMY`.
+- **The client's own boss list** — the `WikiConfig` module exposes
+  `CUSTOM_BOSS_CATEG_VNUMS_*` per-region categories plus `bossList`. Unioned
+  and cached; on a server patch that adds a special, a reload picks it up.
+
+A separate `BOSS_SPAWN_VNUMS` list holds vnums parsed from a static cut of
+the server's own `boss.txt` files, and `EXTRA_VNUMS = [681]` covers
+Thunderclap — orange in game and absent from every list available at the
+time. Ordinary marking is `api.mark_mob` (type-13, moves with the actor);
+the fallback when the stub does not export it is `api.atlas_mark`, re-placed
+each pass to track a moving mob. Ownership of a mob is checked every
+`PRUNE_EVERY_S`; a killed one comes off the map within about half a second.
+
+**Config keys** (main ones):
+
+| Key                                                   | Default             | Meaning                                                 |
+| ----------------------------------------------------- | ------------------- | ------------------------------------------------------- |
+| `BOSS_RANKS`                                          | `[4, 5]`            | Ranks that count as special on their own.               |
+| `USE_WIKI_LIST`, `WIKI_MODULES`, `WIKI_PREFIXES`      | `True`, ...         | The client-side vnum list, unioned at load.             |
+| `BOSS_SPAWN_VNUMS`                                    | 29 vnums            | Static copy of the server's own boss spawns.            |
+| `EXTRA_VNUMS`, `IGNORE_VNUMS`, `IGNORE_NAMES`         | `[681]`, `[]`, `[]` | Manual overrides.                                       |
+| `USE_IMMUNE`                                          | `False`             | Falsified — kept only for the EXPLAIN diagnostic.       |
+| `SCAN_EVERY_S`, `PRUNE_EVERY_S`                       | `2.0`, `0.5`        | Discovery vs upkeep cadence.                            |
+| `MAX_MARKS`, `MARK_BASE`                              | `40`, `994000`      | Cap and id range (disjoint from `entscan`, `autoloot`). |
+| `ANNOUNCE`, `ANNOUNCE_ONCE`                           | `True`, `True`      | Chat popup on first sight.                              |
+| `EXPLAIN_NAMES`, `PROBE`, `HUNT_COLOUR`, `HUNT_VNUMS` | `[]` / `False`      | One-shot probes; verbose diagnostics.                   |
+| `VERBOSE`                                             | `True`              |                                                         |
+
+**UI page.** None.
+
+**Limitations.** Type-13 mob marks need the stub's `minimap_mark` native; on
+builds without it, atlas marks are used and re-placed on every prune tick.
+Rank 3 (`S_KNIGHT`) is deliberately NOT special (Black Orc is one, and its
+name is red). `BOSS_SPAWN_VNUMS` is a static copy of the server-side file
+the docstring quotes.
+
+**What it teaches.** Combining two authoritative sources at load rather than
+maintaining a hand-typed list; the difference between "correlates" and "is"
+(rank, AI flag, immunity, boss list — each one wrong in isolation); reading
+the client's own tables to keep a mod robust across server patches.
+
+---
+
 ## autologin
 
 **Purpose.** Get from launch to in-game unattended by pressing the client's
 own buttons.
 
 **How it works.** When an account has logged in before, the landing screen is
-a "tap to play" gate with saved credentials already loaded, so the tap *is*
+a "tap to play" gate with saved credentials already loaded, so the tap _is_
 the login. The mod waits `TAP_AFTER`, calls `__OnTapToPlay` on phase window
 1, then polls phase window 2 until its character list has arrived (pressing
 earlier raises inside the client's own handler) and calls
@@ -639,6 +721,269 @@ docstring.
 
 **What it teaches.** Change-only upload with a local dedup file; keeping
 credentials out of the source and the log.
+
+---
+
+## autotrade
+
+**Purpose.** Accept incoming trades on a receiving character, once the
+other side's offer has settled.
+
+**How it works.** Reads the whole exchange state through the client's own
+`exchange` module (`isTrading()`, `GetItemVnumFrom*`, `GetElkFrom*`,
+`GetAcceptFrom*`, `GetNameFromTarget`) and only fires
+`m2netm2g.SendExchangeAcceptPacket` when the OTHER SIDE's offer has been
+unchanged for `STABLE_S`. Metin2 clears both accept flags whenever either
+side edits the offer, so an accept on an empty window is simply re-sent
+once they put something in — the retry budget resets on every signature
+change. The safety property that matters is `GIVE_NOTHING`: while ANY item
+or yang is on our side of the window, no accept is sent. That turns the
+character into a strictly RECEIVING one, and the docstring frames it plainly
+("auto-accept any trade with items on our side is a standing invitation to
+be emptied").
+
+**Config keys.** `GIVE_NOTHING = True`, `STABLE_S = 0.0`, `RECHECK_S = 0.0`
+(every pump), `MAX_TRIES = 3`, `RETRY_S = 2.0`, `SLOTS = 12`,
+`DRY_RUN = False`, `VERBOSE = True`.
+
+**UI page.** `GIVE_NOTHING`, `STABLE_S` slider, `DRY_RUN`, `VERBOSE`, Revert.
+
+**Limitations.** Assumes the client's grid size at `SLOTS = 12`; a build
+that indexes differently exits the loop early on the first error.
+`SendExchangeAcceptPacket` is looked up on `m2netm2g` — the mod logs and
+does nothing when it is absent.
+
+**What it teaches.** Reading the client's own trade module rather than
+guessing at the wire packets; a boolean whose ONLY job is a real safety
+property; letting the SIGNATURE of an offer drive the retry budget so
+zero-latency accept is safe.
+
+---
+
+## autodonatexp
+
+**Purpose.** Donate the character's EXP to the guild, on a timer, unattended.
+
+**How it works.** The player-visible chain — `Alt+G → Donate → number box →
+OK` — cannot be reproduced by keystrokes on a background client (this client
+uses `RegisterRawInputDevices`, which only delivers to the foreground
+window), so the mod calls the end of the chain directly:
+`m2netm2g.SendGuildOfferPacket(exp)`. The clamp that
+`uipickmoney.PickMoneyDialogExp` applies BEFORE that packet has to be
+re-applied here, against `playerm2g2.GetEXP()`, or the server refuses the
+whole offer (measured — 999999999 with 2,905,003 EXP moved nothing). A
+verification pass reads guild EXP, own EXP and yang around each send and
+logs all three deltas, so a donation that did nothing says so.
+
+The docstring records HOW the OnOffer chain was identified against two other
+"donate" features on the server (guild bank; donation certificates) — the
+decisive evidence is that `OnOffer`'s argument is named `exp` where
+`OnDeposit`'s is `money`, and the code bodies are stripped of everything
+else. Measured cost: **100 player EXP → 1 guild EXP; yang is not touched**.
+
+**Safety.** Nothing is sent until `ARMED = True`. `ONLY_CHARACTER` restricts
+the mod to a named character. `REQUIRE_GUILD` drops sends made when
+`guild.GetGuildID()` reports zero (also true during the login/select phase).
+
+**Config keys.**
+
+| Key                                 | Default                 | Meaning                                                              |
+| ----------------------------------- | ----------------------- | -------------------------------------------------------------------- |
+| `ARMED`                             | `False`                 | **Master switch.** Nothing is sent while this is false.              |
+| `ONLY_CHARACTER`                    | `""`                    | Restrict to one character; `""` disables the check.                  |
+| `AMOUNT`, `MAX_PER_DONATION`        | `999999999`, `0`        | Number typed into the box (clamped to `GetEXP()`); optional ceiling. |
+| `EVERY_MIN`, `FIRST_AFTER_MIN`      | `60.0`, `2.0`           | Cadence; first send delayed for the guild data to arrive.            |
+| `TEST_AMOUNT`, `VERIFY_AFTER_S`     | `0`, `6.0`              | One-shot experiment amount; verification delay.                      |
+| `REQUIRE_GUILD`, `PROBE`, `VERBOSE` | `True`, `False`, `True` | Safety, one-shot introspection, log every skip.                      |
+
+**UI page.** None.
+
+**Profile notes.** `ARMED` and `ONLY_CHARACTER` are the per-character keys.
+
+**Limitations.** Spends the character's own experience irreversibly; the
+docstring warns that a still-levelling character is the wrong home for this
+and that nothing here can tell "capped" from "still growing".
+`SendGuildOfferPacket` and the balance readers are looked up at send time;
+absent bindings are logged and the send skipped.
+
+**What it teaches.** Bypassing a UI whose keystrokes cannot reach a
+background window by calling the packet at the end of its chain; using
+`co_varnames` as evidence when `co_names` is stripped; VERIFYING an
+irreversible action by reading balances before and after.
+
+---
+
+## ribfarmer
+
+**Purpose.** One switch for a Red Iron Blade farm: `autohunt2` and
+`autoloot` pointed at the blade-dropping mobs, with the blade filters and a
+radar for drops.
+
+**How it works.** Not a fourth hunting engine — it `exec`s the SAME
+`autohunt2` and `autoloot` code that ships in this folder into private
+namespaces, then applies its overrides. That is the isolation modhost
+provides, used twice, so hosting is one file rather than a divergent copy
+of either engine. The either/or rule: it REFUSES to run when `autohunt2`,
+`autoloot` or `orcfarmer` is enabled for this character,
+names which one, and stands down without switching anyone off itself.
+
+The blade radar (`BLADE_RADAR`, `ANNOUNCE_DROPS`) marks every listed drop
+on the atlas; `FETCH_UNOWNED` walks to blades dropped for OTHER players and
+`CAMP_S = 45` stands on them until the ownership lapses.
+`HUNT_ANYTHING_WHEN_NONE` PRIORITISES `RIB_RACES` rather than restricting
+to them — the docstring explains why (a hard filter starves itself of
+spawns). An aggro tracker publishes `TRIARCH_FIGHT_BUSY` and `TRIARCH_AGGRO`
+so the collector defers to the fight, and `LOOT_WHILE_IDLE = False` stands
+the collector down when the hunt is not running.
+
+The hosted engines are re-`exec`'d when their files change on disk
+(`ENGINE_POLL_S`), so editing `autoloot/main.py` behaves identically
+whether it is loaded directly or by this mod.
+
+**Config keys** (main ones):
+
+| Key                                                     | Default                                | Meaning                                              |
+| ------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------- |
+| `RIB_RACES`                                             | `[702, 703]`                           | Dark Arahan, Esoteric Arahan Fighter.                |
+| `RIB_VNUMS`, `RIB_NAMES`                                | `3210..3219`, `"red iron blade+0..+9"` | Every refinement level.                              |
+| `IGNORE_PLAYERS`                                        | `[]`                                   | Own alts, so avoidance does not count them.          |
+| `SEEK_RANGE`, `FETCH_RANGE`                             | `12000.0`, `12000.0`                   | Walk radius for wanted mobs / listed drops.          |
+| `HUNT_ANYTHING_WHEN_NONE`, `BLANK_S`                    | `True`, `8.0`                          | Priority vs restriction; blank-time trigger.         |
+| `BLADE_RADAR`, `RADAR_RANGE`                            | `True`, `0.0`                          | Announce and pin every drop, no distance limit.      |
+| `TAKE_OTHERS`, `CAMP_S`                                 | `True`, `45.0`                         | Camp on unowned drops until they turn.               |
+| `EXTRA_NAMES`, `EXTRA_VNUMS`, `PASSING_ONLY`            | small lists                            | Extras taken in passing; explicit "in passing only". |
+| `FETCH_EVERYTHING`, `TAKE_MONEY`, `LEARN_DROPS`         | `True`, `False`, `True`                | Fetching scope; yang; drop-source stats.             |
+| `FIGHT_FIRST`, `AGGRO_*`, `FIGHT_HOLD_S`, `FIGHT_MAX_S` | many, see file                         | Aggro tracker and its ceilings.                      |
+| `LOOT_WHILE_IDLE`                                       | `False`                                | Collector stops with the hunt.                       |
+| `LABEL`, `HUNT`, `LOOT`, `VERBOSE`                      | `"ribfarmer"`, `{}`, `{}`, `True`      | Chat label; free-form engine overrides.              |
+
+**UI page.** `RIB_RACES`, `RIB_VNUMS`, `HUNT_ANYTHING_WHEN_NONE`, `BLANK_S`,
+`BLADE_RADAR`, `TAKE_OTHERS`, `CAMP_S`, `TAKE_MONEY`, `LEARN_DROPS`,
+`SEEK_RANGE`, `IGNORE_PLAYERS`, `VERBOSE`, Revert. Start/stop is the game's
+own autohunt button.
+
+**Profile notes.** `IGNORE_PLAYERS` is per-character (your own alts).
+
+**Limitations.** Two hunting engines on one client is a fight, hence the
+either/or rule. Hosted-engine changes only propagate on the disk-poll tick.
+
+**What it teaches.** Reusing a mod as a library by `exec`ing it into a
+private namespace; publishing DEADLINES to arbitrate FIGHT > LOOT > HUNT;
+priority-not-restriction as a target rule.
+
+---
+
+## orcfarmer
+
+**Purpose.** One switch for an Orc-drop farm: same hosting shape as
+`ribfarmer`, hunting by NAME (`"orc"`) rather than by race number.
+
+**How it works.** `ribfarmer` with a substring hunt: `HUNT_RACES = ["orc"]`
+is resolved by `autohunt2` through `nonplayer.GetMonsterDataByNamePart`, so
+one entry covers Black Orc, Black Orc Giant, Bold Black Orc, Elite Orc
+Fighter, Elite Orc Sorcerer and any other Orc the server adds. The
+docstring names the trap: this server has "Orchid Sword" items whose name
+contains "orc", but items cannot appear in a monster lookup — read the
+`_hunt_resolved` log line to confirm what the string matched to.
+
+Every listed drop gets the full treatment (`PASSING_ONLY = []`): announced,
+pinned to the atlas, walked to, and camped on. Same either/or rule against
+`autohunt2`, `autoloot`, `ribfarmer`.
+
+**Config keys.** `ORC_RACES = ["orc"]`,
+`ORC_VNUMS = [30006, 30076]` (Orc Tooth, Orc Amulet+ — measured on the
+ground), `ORC_NAMES = ["orc tooth", "orc amulet", "orc molar"]`,
+`IGNORE_PLAYERS = []`, `SEEK_RANGE = 12000.0`, `TAKE_MONEY = False`,
+`LEARN_DROPS = True`, `HUNT_ANYTHING_WHEN_NONE = True`, `BLANK_S = 8.0`,
+`BLADE_RADAR = True`, `TAKE_OTHERS = True`, `CAMP_S = 45.0`,
+`FETCH_EVERYTHING = True`, `PASSING_ONLY = []`, `EXTRA_NAMES = []`,
+`EXTRA_VNUMS = []`, `LABEL = "orcfarmer"`, `HUNT = {}`, `LOOT = {}`,
+plus the same aggro-tracker block as `ribfarmer`.
+
+**UI page.** `ORC_RACES`, `ORC_NAMES`, `ORC_VNUMS`, `BLADE_RADAR`,
+`TAKE_OTHERS`, `CAMP_S`, `HUNT_ANYTHING_WHEN_NONE`, `BLANK_S`,
+`TAKE_MONEY`, `LEARN_DROPS`, `SEEK_RANGE`, `IGNORE_PLAYERS`, `VERBOSE`,
+Revert.
+
+**Profile notes.** `IGNORE_PLAYERS` per character.
+
+**Limitations.** As with the other farm presets, two hunting engines on one
+client is a fight. Name-based hunting is only as good as
+`GetMonsterDataByNamePart`'s substring behaviour — verified on measured
+mobs to return one 2-tuple rather than a list.
+
+**What it teaches.** When to hunt by NAME rather than by race number, and
+how to check what the resolve produced.
+
+---
+
+## automonkey
+
+**Purpose.** Run the monkey dungeon loop for ever, unattended: walk from
+Pyungmoo to Bakra to the dungeon, use the skill on arrival, start the
+game's OWN autohunt, and repeat when the dungeon spits the character out.
+
+**How it works.** The map IS the state. `ROUTE` maps a map name (as
+`api.map_name()` returns it) to a world-coordinate destination; each tick
+compares the current map, walks to the target, and on arrival runs
+per-map actions (`USE_SKILL` for hunt maps; `START_HUNT` calls
+`CreateAutoBotSettings()` + `SetAutoHuntStatus` and/or the `/auto_hunt
+start` chat command — the docstring records which combination is
+CONFIRMED WORKING and warns against layering both toggles). No sequence,
+no "began at step 3" state to get stuck in.
+
+Walking has three regimes, chosen per map: `"auto"` (issue once,
+watchdog resumes), `"repath"` (re-issue the destination whenever progress
+stalls — measured: 1m36s vs a 3m34s spread on the dungeon leg, because
+`__AutoPathSegment` wedges on a segment it computed and re-issuing
+replaces it with a fresh one), and `"steer"` (hold camera-relative
+`SetMultiDirKeyState` and re-aim every tick — kept as a fallback).
+`IGNORE_MOBS_MAPS` uses the stub's `drop_engagement()` to refuse every
+fight while walking, so nothing turns the character to swing and the
+route survives. The transformation applied on the boot back to Pyungmoo
+is dropped in two steps (click affect icon → answer the confirmation
+dialog with `acceptButton.CallEvent`), with the dialog picked from a
+ranked candidate list (`CANCEL_PREFER` / `CANCEL_NEVER`) so a whisper
+window that happens to be open is never mistaken for the confirm.
+
+**Conflicts.** `autohunt2` and `ribfarmer` both intercept `/auto_hunt` and
+block `SetAutoHuntStatus`, so a mod that starts the client's OWN autohunt
+cannot coexist with them on the same character. `_check_hunt_conflict`
+warns and continues; disable them (or set `START_HUNT = False`).
+
+**Config keys** (main ones):
+
+| Key                                                                       | Default                            | Meaning                                                   |
+| ------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------- |
+| `ONLY_CHARACTER`                                                          | `""`                               | Restrict to a farming character; `""` disables the check. |
+| `ROUTE`                                                                   | 3 entries                          | Map name → world destination `[x, y]`.                    |
+| `HUNT_MAPS`, `TRANSFORM_MAPS`, `IGNORE_MOBS_MAPS`, `REPATH_MAPS`          | 1–2 entries each                   | Per-map behaviour toggles.                                |
+| `SKILL_KEY`, `SKILL_SLOT`, `USE_SKILL`                                    | `2`, `None`, `True`                | Hotbar press on entering a hunt map.                      |
+| `START_HUNT`, `HUNT_VIA_SETTINGS`, `HUNT_VIA_MINIMAP`, `HUNT_VIA_CHAT`    | `True`, `True`, `False`, `True`    | The confirmed working combination.                        |
+| `STOP_HUNT_ON_LEAVE`                                                      | `True`                             | `/auto_hunt end` when we leave a hunt map.                |
+| `ARRIVE`, `SETTLE_S`, `STALL_S`, `RESUME_EVERY_S`, `MAX_RESUMES`          | `400.0`, `3.0`, `1.5`, `2.0`, `25` | Arrival radius; timing tolerances.                        |
+| `IGNORE_RESUME_EVERY_S`, `IGNORE_MAX_RESUMES`                             | `1.0`, `200`                       | Ignore-map resume budget.                                 |
+| `COMBAT_MEMORY_S`, `WALK_STATE`, `WALK_STATES`                            | `6.0`, `0x8A`, `[0x8A, 0x88]`      | Discriminator for "combat killed the walk".               |
+| `CANCEL_TRANSFORM`, `TRANSFORM_AFFECT`, `CANCEL_ANSWER_S`, `CANCEL_TRIES` | `True`, `220`, `0.4`, `3`          | Transform cancel (measured NEW_AFFECT_POLYMORPH).         |
+| `CANCEL_PREFER`, `CANCEL_NEVER`                                           | lists                              | Ranked dialog candidates; deny-list for chat/whisper etc. |
+| `MOVE_METHOD`, `REPATH_*`, `STEER_*`                                      | `"auto"`, many                     | The three walking regimes.                                |
+| `PROBE_TRANSFORM`, `DIAG`, `FORCE_*`, `VERBOSE`                           | mixed                              | One-shot probes; diagnostics; verbosity.                  |
+
+**UI page.** None — this is a per-character preset, configured in a profile.
+
+**Profile notes.** `ONLY_CHARACTER` is the safety catch. `ROUTE`, the map
+lists and the hunt toggles are per-server data.
+
+**Limitations.** Needs `api.natives.module().drop_engagement()` to refuse
+fights while walking — degrades otherwise. Needs `gc` at import time to
+locate the transformation dialog and its acceptButton; the docstring
+records that `gc` is a builtin and imports even where `zipimport` is
+broken. Route coordinates are world units (in-game units × 100, verified).
+
+**What it teaches.** Building a loop out of a MAP-KEYED RULE rather than a
+sequence; re-issuing over polling as the recovery pattern for a
+segment-based auto-mover; ranked candidates for a "which window is the
+question?" problem where the FIRST match was the earlier bug.
 
 ---
 
@@ -840,17 +1185,19 @@ Every **request** key is consumed exactly once by its reader; **state** keys
 are republished every tick; a **hold** is a deadline so a dead writer cannot
 freeze the reader.
 
-| Key | Writer → Reader | Value |
-|---|---|---|
-| `TRIARCH_ATTACK` | `api.attack()` → stub | target VID; the stub acts on change |
-| `TRIARCH_ATTACK_OK` | stub → `api.attack_available()` | `"1"` when the bridge is armed |
-| `TRIARCH_MODS` | bootstrap → stub | status string, written to `uriel_stub.log` |
-| `TRIARCH_LOOT_BUSY` | `autoloot` → `autohunt2` | epoch deadline; hunting stands down until it passes |
-| `TRIARCH_CHAN_REQUEST` | `autohunt2`, `follow`, `routes` → `chanswap` | channel number, consumed once |
-| `TRIARCH_ROUTE_ACTIVE` | `routes` → `autohunt2` | `"1"` while a route runs |
-| `TRIARCH_HUNT_REQUEST` | `routes` → `autohunt2` | `"start"` / `"stop"`, consumed once |
-| `TRIARCH_HUNT_STATE` | `autohunt2` → `routes` | `"off"` / `"busy"` / `"idle"` / `"clear"`, every tick |
-| `TRIARCH_TASK_REQUEST`, `TRIARCH_TASK_STATE` | `routes` ↔ a worker mod | `"<name> start|stop"` / `"<name>:off|busy|done"` (no shipped worker yet) |
+| Key                                          | Writer → Reader                                | Value                                                                     |
+| -------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `TRIARCH_ATTACK`                             | `api.attack()` → stub                          | target VID; the stub acts on change                                       |
+| `TRIARCH_ATTACK_OK`                          | stub → `api.attack_available()`                | `"1"` when the bridge is armed                                            |
+| `TRIARCH_MODS`                               | bootstrap → stub                               | status string, written to `uriel_stub.log`                                |
+| `TRIARCH_LOOT_BUSY`                          | `autoloot` → `autohunt2`                       | epoch deadline; hunting stands down until it passes                       |
+| `TRIARCH_CHAN_REQUEST`                       | `autohunt2`, `follow`, `routes` → `chanswap`   | channel number, consumed once                                             |
+| `TRIARCH_ROUTE_ACTIVE`                       | `routes` → `autohunt2`                         | `"1"` while a route runs                                                  |
+| `TRIARCH_HUNT_REQUEST`                       | `routes` → `autohunt2`                         | `"start"` / `"stop"`, consumed once                                       |
+| `TRIARCH_HUNT_STATE`                         | `autohunt2` → `routes`                         | `"off"` / `"busy"` / `"idle"` / `"clear"`, every tick                     |
+| `TRIARCH_TASK_REQUEST`, `TRIARCH_TASK_STATE` | `routes` ↔ a worker mod                        | `"<name> start                                                            | stop"`/`"<name>:off | busy | done"` (no shipped worker yet) |
+| `TRIARCH_FIGHT_BUSY`                         | `ribfarmer` / `orcfarmer` → hosted `autoloot`  | epoch deadline; the collector will not START a fetch while a mob is on us |
+| `TRIARCH_AGGRO`                              | `ribfarmer` / `orcfarmer` → hosted `autohunt2` | `"<deadline> <vid,vid,...>"`; who has aggroed us right now                |
 
 The one exception is `chanswap`, which also registers
 `sys.modules["triarch_chan"]` so a mod can call `change_to(ch)` directly.
