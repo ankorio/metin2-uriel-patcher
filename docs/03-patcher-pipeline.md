@@ -133,13 +133,20 @@ The sha256 check catches one specific historical accident: PyInstaller finding U
 
 `_copy_tree` never deletes anything already present, skips `__pycache__` and compiled files, and reports "kept your existing config.json" when it preserves the user's settings.
 
-> **See it yourself — run it and read the log**
->
-> 1. Copy `TriarchPatcher.exe` next to `triarch.exe` and run it. The log window colours each step; the same text lands in `_patcher\patcher_run.log`.
-> 2. When it finishes, list the game folder: `triarch_clean.exe`, `uriel_stub.dll`, `uriel_offsets.ini`, `uriel_natives.ini`, `mods\`, `_patcher\`. Open the two `.ini` files — every line is an address that was derived minutes ago from the file in front of you.
-> 3. Launch `triarch_clean.exe --game`. In `_patcher\` the file `uriel_stub.log` appears (the DLL announcing what it armed) and, in the same folder, `mods.log` (the mod host listing the mods it loaded).
->
-> *[Screenshot 03-A goes here — file `images/03-A-patcher-window-and-folder.png`: the patcher's log window after a successful run, and the game folder listing showing the generated files. See [images/README.md](images/README.md).]*
+<details>
+<summary><strong>[Expand] See it yourself — run it and read the log</strong></summary>
+
+1. Copy `TriarchPatcher.exe` next to `triarch.exe` and run it. The log window colours each step; the same text lands in `_patcher\patcher_run.log`.
+
+   ![The patcher log window after a successful run: resolve offsets, resolve natives "8 native(s) armed, 0 rejected", deploy stub, install mods (37 files), "patched in 235s - launch triarch_clean.exe --game", SUCCESS](images/03-A-patcher-window.png)
+
+2. When it finishes, list the game folder: `triarch_clean.exe`, `uriel_stub.dll`, `uriel_offsets.ini`, `uriel_natives.ini`, `mods\`, `_patcher\`. Open the two `.ini` files — every line is an address that was derived minutes ago from the file in front of you.
+
+   ![Explorer view of the game folder after patching, showing the generated triarch_clean.exe, uriel_stub.dll, uriel_offsets.ini, uriel_natives.ini, mods\ and _patcher\ alongside the original triarch.exe and client_x86.dll](images/03-A-folder.png)
+
+3. Launch `triarch_clean.exe --game`. In `_patcher\` the file `uriel_stub.log` appears (the DLL announcing what it armed) and, in the same folder, `mods.log` (the mod host listing the mods it loaded).
+
+</details>
 
 ## Evidence: one full run, one live boot
 
@@ -248,12 +255,15 @@ All five outputs are consumed by the stub or the loader at game start. Each has 
 
 The asymmetry is the point: a missing DLL fails at the loader; a missing offsets file fails at attach with a FATAL line; a missing natives file does not fail at all. The pipeline treats the last one as the most dangerous precisely because nothing downstream will complain.
 
-> **See it yourself — the stub and the mod host reporting in**
->
-> 1. Open `_patcher\\uriel_stub.log` after the first launch: the offsets it read, the natives it armed, anything it rejected.
-> 2. Open `_patcher\mods.log` (the mod host writes into the same folder as the stub): one line per mod loaded, and the hot-reload messages when you save a mod file while the game runs.
->
-> *[Screenshot 03-B goes here — file `images/03-B-stub-and-mods-logs.png`: `_patcher\uriel_stub.log` and `_patcher\mods.log` open side by side after the first launch of triarch_clean.exe. See [images/README.md](images/README.md).]*
+<details>
+<summary><strong>[Expand] See it yourself — the stub and the mod host reporting in</strong></summary>
+
+1. Open `_patcher\uriel_stub.log` after the first launch: the offsets it read, the natives it armed, the hooks it placed, anything it rejected.
+2. Open `_patcher\mods.log` (the mod host writes into the same folder): one line per mod loaded or disabled, and the hot-reload messages when you save a mod file while the game runs.
+
+![uriel_stub.log and mods.log side by side after the first launch: the stub reports attached, 8 natives / 12 fields loaded, the NET/AUTH hooks, and triarch_native registered; the mod host reports "mod host up api=v23" with the loaded and disabled mods](images/03-B-stub-and-mods-logs.png)
+
+</details>
 
 ## The `_patcher\` folder
 

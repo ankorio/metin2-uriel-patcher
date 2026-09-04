@@ -141,12 +141,18 @@ about 11–12 % overall; the next most common byte is under 7 %. Any
 protector that XORs a repeated key over code hands that statistic straight
 to the attacker.
 
-> **See it yourself — recover the key on your machine**
->
-> 1. `python tools/ksattack.py triarch.exe` — prints the number of pages sampled and, if you also pass a known-good `triarch_clean.exe` of the *same build*, the score against ground truth. Without one, it still prints how many offsets had a weak majority (expect 0).
-> 2. Save the key and look at it: `python -c "import sys; sys.path.insert(0,'tools'); import unuriel; d=open('triarch.exe','rb').read(); k,w=unuriel.static_keystream(d, unuriel.PE(d)); open('key.bin','wb').write(k); print(k[:16].hex(), 'weak', w)"`. Open `key.bin` in HxD: 4096 bytes that look random — because they are. The weakness was never the key; it was the reuse.
->
-> *[Screenshot 02-A goes here — file `images/02-A-ksattack-output-and-key.png`: terminal output of tools/ksattack.py on the protected exe, and HxD showing the first bytes of key.bin. See [images/README.md](images/README.md).]*
+<details>
+<summary><strong>[Expand] See it yourself — recover the key on your machine</strong></summary>
+
+1. `python tools/ksattack.py triarch.exe` prints the number of pages sampled and how many offsets had a weak majority (expect 0). Pass a known-good `triarch_clean.exe` of the *same build* as a second argument and it also scores the recovery against ground truth (4096/4096).
+
+   ![Terminal running tools/ksattack.py on the protected exe: 17759 pages, 0 weak-mode offsets, wrote keystream.bin](images/01-B-ksattack.png)
+
+2. The recovered key is written beside it as `keystream.bin` — no extra step needed. Open that in HxD: 4096 bytes that look random, because they are. The weakness was never the key; it was reusing it on every page.
+
+   ![HxD showing keystream.bin: 4096 apparently random bytes, the recovered per-page key](images/02-A-keystream.png)
+
+</details>
 
 ## 2. Decoding the import names
 
@@ -175,21 +181,30 @@ Two things to notice:
 
 After decoding, `derive` sanity-checks every name against an identifier alphabet (`IDENT` in the source). If any decoded name contains a character outside `[A-Za-z0-9_@?$]`, the key is wrong and the run stops with "decoded import names are garbage". This is the cheapest possible end-to-end check on step 1: 626 short strings that all have to come out as valid C identifiers.
 
-> **See it yourself — decode one import name by hand**
->
-> 1. Take any IAT slot value from the PE-bear hex view in the previous document, convert the RVA to a file offset (PE-bear shows both), and read the entry: a 16-bit length `n` then `n` bytes.
-> 2. XOR them with the key you saved:
->    ```python
->    import struct
->    d = open('triarch.exe','rb').read(); k = open('key.bin','rb').read()
->    off = 0x00000000                      # file offset of the hint/name entry you picked
->    n = struct.unpack_from('<H', d, off)[0]
->    print(bytes(c ^ k[i] for i, c in enumerate(d[off+2:off+2+n])))
->    ```
->    A Windows API name appears — `RegFlushKey`, `BitBlt`, `GetStartupInfoW`, whichever slot you picked.
-> 3. Run `python tools/unuriel.py derive triarch.exe -o profile.json` and open `profile.json`: every slot, decoded, with the DLL it was attributed to.
->
-> *[Screenshot 02-B goes here — file `images/02-B-decode-one-name-and-profile.png`: a Python session decoding a single hint/name entry into a readable API name, next to profile.json opened in an editor. See [images/README.md](images/README.md).]*
+<details>
+<summary><strong>[Expand] See it yourself — decode one import name by hand</strong></summary>
+
+1. Take an IAT slot from the PE-bear hex view (document 01). The first dword at the start of `.rdata` is `0x04DAE454` — an RVA that points at a hint/name record.
+
+   ![PE-bear hex view on the IAT at the start of .rdata: the first entry reads 54 E4 DA 04 = RVA 0x04DAE454; the data directory shows the IAT at 0x4570000 size 0xA20](images/02-B-iat-slot.png)
+
+2. Convert that RVA to a file offset (subtract the `.rdata` RVA, add its raw pointer — here a shift of `-0x10400`, giving `0x4D9E054`) and decode it: a 16-bit length `n`, then `n` bytes XORed with `keystream.bin`.
+   ```python
+   import struct
+   d = open('triarch.exe','rb').read(); k = open('keystream.bin','rb').read()
+   off = 0x4D9E054                       # the hint/name entry the IAT slot points at
+   n = struct.unpack_from('<H', d, off)[0]
+   print(bytes(c ^ k[i] for i, c in enumerate(d[off+2:off+2+n])))
+   ```
+   A Windows API name appears — here `b'RegFlushKey'`.
+
+   ![Terminal running the decode script and printing b'RegFlushKey', with the small script open in an editor](images/02-B-decode.png)
+
+3. Run `python tools/unuriel.py derive triarch.exe -o profile.json` and open `profile.json`: the whole table decoded, every slot with the DLL it was attributed to — the one name you just did by hand, done for all 626.
+
+   ![profile.json open in an editor: the iat array with slot_rva, value, dll and decoded name for every import (RegFlushKey highlighted)](images/02-B-profile.png)
+
+</details>
 
 ## 3. Groups, and which DLL each one belongs to
 
@@ -237,12 +252,16 @@ The live harvest resolves an *address* back to an *export*. That is lossy in thr
 
 A rebuilt executable that imports `RtlAllocateHeap` from ntdll runs fine, but it is not what the game was built with, and any later tool that looks for an IAT slot by name (`tools/mkoffsets.py` does exactly this) would miss. The names decoded from the on-disk hint/name entries are the linker's own, so they are what `derive` uses. The harvest's only remaining job for imports is to say which DLL a group came from, and that is captured once in the JSON table.
 
-> **See it yourself — the 22 groups in the derive output**
->
-> 1. Look at the group table `derive` prints: one line per DLL with its import count and first name. Compare the order with `imports_db.json`: uppercase DLL names first, lowercase after — the linker's sort order, which is what breaks the OLEAUT32/WS2_32 tie.
-> 2. Open `profile.json` and search for `"value": 0` — exactly 22 hits, the separators.
->
-> *[Screenshot 02-C goes here — file `images/02-C-derive-groups.png`: the derive group table in the terminal (22 lines, ADVAPI32 … urlmon) with the 'group 5: ordinal-only … -> OLEAUT32.dll' tie-break line visible. See [images/README.md](images/README.md).]*
+<details>
+<summary><strong>[Expand] See it yourself — the 22 groups in the derive output</strong></summary>
+
+1. Look at the group table `derive` prints: one line per DLL with its import count and first name. Compare the order with `imports_db.json` — uppercase DLL names first, lowercase after — the linker's sort order, which is what breaks the OLEAUT32/WS2_32 tie (the `group 5: ordinal-only … -> OLEAUT32.dll` line).
+
+   ![Terminal output of unuriel.py derive: the 22-line DLL group table (ADVAPI32 … urlmon), the OLEAUT32/WS2_32 tie-break line, and the summary 22 groups / 626 imports / 34 by ordinal / 0 unresolved](images/02-C-derive-groups.png)
+
+2. Open `profile.json` and search for `"value": 0` — exactly 22 hits, the group separators.
+
+</details>
 
 ## 4. Finding the original entry point by shape
 
@@ -266,12 +285,16 @@ Candidates are then scored. Ten points if the callee contains the single `mov [_
 
 To build the "is this address ever a target" and "how many times is this called" sets, the finder makes one pass over all of `.text` decoding every `E8`/`E9` relative displacement. That is a crude disassembly — it will also pick up `E8` bytes that are data — but it errs on the side of *more* targets, which only makes the "never a target" test stricter, never looser.
 
-> **See it yourself — the CRT entry shape**
->
-> 1. After `rebuild`, open `triarch_clean.exe` in PE-bear → **Optional Hdr** → *Entry Point*, then **Disasm** at that RVA: `E8 xx xx xx xx` (call) immediately followed by `E9 xx xx xx xx` (jmp), and `CC` bytes just before it.
-> 2. In Ghidra, import `triarch_clean.exe`, let auto-analysis run, and go to the entry point: Ghidra names the two targets `__security_init_cookie`-like and `__scrt_common_main_seh`-like from their shape as well.
->
-> *[Screenshot 02-D goes here — file `images/02-D-oep-call-jmp.png`: PE-bear Disasm at the restored entry point of triarch_clean.exe showing call/jmp with CC padding before it, or the same location in Ghidra. See [images/README.md](images/README.md).]*
+<details>
+<summary><strong>[Expand] See it yourself — the CRT entry shape</strong></summary>
+
+1. After `rebuild`, open `triarch_clean.exe` in PE-bear → **Optional Hdr** → *Entry Point*, then **Disasm** at that RVA: `E8 xx xx xx xx` (call) immediately followed by `E9 xx xx xx xx` (jmp), with `CC` padding just before it. This is the same restored entry shown for transformation 4 in document 01:
+
+   ![PE-bear Disasm at the rebuilt entry point: CALL then JMP then CC padding, the MSVC CRT start-up](images/01-E-clean-crt.png)
+
+2. In Ghidra, import `triarch_clean.exe`, let auto-analysis run, and go to the entry point: Ghidra names the two targets `__security_init_cookie`-like and `__scrt_common_main_seh`-like from their shape as well.
+
+</details>
 
 ## 5. Rebuild: writing a clean executable
 
@@ -306,13 +329,17 @@ flowchart LR
     P -->|rebuild| R[triarch_clean.exe<br/>clear .text, +EXECUTE<br/>ASLR off<br/>.unuriel: real import dir<br/>EP restored]
 ```
 
-> **See it yourself — before and after, side by side**
->
-> 1. Open `triarch.exe` and `triarch_clean.exe` in two PE-bear windows. **Imports**: 1 DLL versus 22. **Section Hdrs**: the clean one has an extra `.unuriel` section at the end and `.text` has its execute flag back. **Optional Hdr**: entry point moved, and *DllCharacteristics* lost the *Dynamic Base* bit.
-> 2. DiE entropy on the clean exe: `.text` now reads about 6.5 — real code.
-> 3. Ghidra on the clean exe: strings, cross-references and readable functions everywhere. This is the file every later document works on.
->
-> *[Screenshot 02-E goes here — file `images/02-E-before-after-imports.png`: two PE-bear windows: Imports tab of triarch.exe (1 DLL) versus triarch_clean.exe (22 DLLs), with the .unuriel section visible in the clean file's section table. See [images/README.md](images/README.md).]*
+<details>
+<summary><strong>[Expand] See it yourself — before and after, side by side</strong></summary>
+
+1. Open `triarch.exe` and `triarch_clean.exe` in two PE-bear windows. **Imports**: one DLL (`client_x86.dll` → `FireInTheHole`) versus the ~22 real DLLs. **Section Hdrs**: the clean one has an extra `.unuriel` section at the end and `.text` has its execute flag back. **Optional Hdr**: the entry point moved into `.text` and *DllCharacteristics* lost the *Dynamic Base* bit.
+
+   ![Two PE-bear windows side by side: protected triarch.exe Imports shows only client_x86.dll/FireInTheHole; rebuilt triarch_clean.exe shows ~22 DLLs (ADVAPI32 … urlmon, plus the renamed uriel_stub import) and a .unuriel section in the tree](images/02-E-before-after.png)
+
+2. DiE entropy on the clean exe: `.text` now reads about 6.5 — real code.
+3. Ghidra on the clean exe: strings, cross-references and readable functions everywhere. This is the file every later document works on.
+
+</details>
 
 ## 6. The live method, kept as a fallback
 
