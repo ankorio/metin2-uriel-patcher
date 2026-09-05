@@ -189,7 +189,7 @@ Two consequences follow. First, a page that is never executed is never decrypted
 
 2. With the protected client running, open it in System Informer → **Memory** tab, sort by address, and scroll through the `.text` range (`0x410000` upward if the image loaded at its preferred base: `.text` has VirtualAddress `0x10000` and the base is `0x400000`). Pages that have been executed show `RX`; pages that have not are still `R` only. Move around in the game and refresh: more pages turn `RX`. That is the lazy, per-page decryption at work. (This step needs the protected client running on a physical machine — its anti-cheat refuses to run under a VM or with an analysis tool attached.)
 
-   _[Screenshot 01-C runtime view goes here — file `images/01-C-sysinformer-text-protections.png`: System Informer Memory tab of the running protected client, a mix of R and RX 4 KB regions inside the .text range. See [images/README.md](images/README.md).]_
+   ![System Informer Memory tab of the running protected triarch.exe: a mix of RX and NA 4 KB regions inside the .text range, the lazy per-page decryption in progress](images/01-C-sysinformer-text-protections.png)
 
 </details>
 
@@ -284,8 +284,9 @@ None of the above was documented anywhere. Here is the order in which the observ
 1. Start the protected client and attach x32dbg (_File → Attach_). Open the **Memory Map**: the image, its sections, and the DLLs — `client_x86.dll` is there, loaded before anything the game needs.
 2. In the **CPU** view, go to an address in `.text` that has already run (the entry of any function the game is currently executing — pause the debugger and look where it stopped). Readable x86. Then `Ctrl+G` to an address a few megabytes away that nothing has touched yet: PE-bear-style noise, and the page is not executable.
 3. This is the whole "decrypted lazily, page by page" observation, made without reading a single instruction of the protector.
+4. Open the **Symbols** panel (tab at the top of x32dbg) and pick `triarch.exe`. Exactly one line is an `Import`: `FireInTheHole` at ordinal 0, from `client_x86.dll`. Confirms live what PE-bear reported statically (transformation 3). Open Scylla (_Plugins → Scylla_) against the same process and it will confirm the libary is loaded and available to be dumped.
 
-_[Screenshot 01-F goes here — file `images/01-F-x32dbg-memory-map.png`: x32dbg attached to the running client: Memory Map with client_x86.dll listed, and the CPU view showing decrypted code at a hot address. See [images/README.md](images/README.md).]_
+![x32dbg attached to the running triarch.exe: the Symbols panel shows a single Import row, FireInTheHole from client_x86.dll, next to the two Nvidia/AMD exports and the entry-point marker; Scylla is open on the process ready to reconstruct the imports](images/01-F-x32dbg-symbols-scylla.png)
 
 </details>
 
